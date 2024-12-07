@@ -2,6 +2,7 @@ import pytest
 from asyncua.sync import Server
 from uaclient.mainwindow import Window
 
+
 @pytest.fixture(scope="module")
 def url():
     yield "opc.tcp://localhost:48400/freeopcua/server/"
@@ -14,6 +15,7 @@ def server(url):
     server.start()
     yield server
     server.stop()
+
 
 @pytest.fixture
 def client(qtbot, url, server):
