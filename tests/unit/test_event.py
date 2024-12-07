@@ -22,6 +22,9 @@ def test_unsubscribe_event_subscription(client, server, url):
     client.settings.setValue("current_node", current_nodes)
     client.load_current_node()
 
+    client.event_ui._subscribe(server_node)
+    assert len(client.event_ui._subscribed_nodes) == 1
+
     client.event_ui._unsubscribe(server_node)
     client.event_ui._unsubscribe(server_node)
     assert len(client.event_ui._subscribed_nodes) == 0

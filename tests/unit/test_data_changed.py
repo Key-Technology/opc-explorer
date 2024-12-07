@@ -23,6 +23,9 @@ def test_subscribe_data_changed(client, server, server_node):
 
 
 def test_unsubscribe_data_changed(client, server, server_node):
+    client.event_ui._subscribe(server_node)
+    assert len(client.event_ui._subscribed_nodes) == 1
+
     client.datachange_ui._unsubscribe(server_node)
     client.datachange_ui._unsubscribe(server_node)
     assert len(client.datachange_ui._subscribed_nodes) == 0
