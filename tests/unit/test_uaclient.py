@@ -2,6 +2,7 @@ import pytest
 
 from uaclient.mainwindow import EventHandler
 from uaclient.uaclient import UaClient
+from uaclient.tree.data_change_handler import DataChangeHandler
 from unittest.mock import Mock
 from asyncua.sync import Subscription, Client
 
@@ -22,6 +23,18 @@ def uaclient(url):
     uaclient.connect(url)
     yield uaclient
     uaclient.disconnect()
+
+
+def test_subscribe_datachange(uaclient, server):
+    node_signal_dict = {}
+    handler = DataChangeHandler(node_signal_dict)
+    namepace = server.register_namespace("custom_namespace")
+    objects = server.nodes.objects
+    float_variable = objects.add_variable(namepace, "float_variable", 1.0)
+    assert not uaclient._datachange_sub
+    handler = uaclient.subscribe_datachange(float_variable, handler)
+    assert isinstance(uaclient._datachange_sub, Subscription)
+    assert handler == uaclient._subs_dc[float_variable.nodeid]
 
 
 def test_subscribe_events(uaclient, server):
