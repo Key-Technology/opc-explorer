@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
 import sys
-
 import logging
 
 from PyQt5.QtCore import (
@@ -32,6 +31,7 @@ from uaclient.mainwindow_ui import Ui_MainWindow
 from uaclient.connection_dialog import ConnectionDialog
 from uaclient.application_certificate_dialog import ApplicationCertificateDialog
 from uaclient.graphwidget import GraphUI
+from uaclient.tree.tree_model import TreeModel
 
 # must be here for resources even if not used
 from uawidgets import resources  # noqa: F401
@@ -41,7 +41,6 @@ from uawidgets.refs_widget import RefsWidget
 from uawidgets.utils import trycatchslot
 from uawidgets.logger import QtHandler
 from uawidgets.call_method_dialog import CallMethodDialog
-
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +128,6 @@ class Window(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setWindowIcon(QIcon(":/network.svg"))
-
         # fix stuff imposible to do in qtdesigner
         # remove dock titlebar for addressbar
         w = QWidget()
@@ -165,6 +163,8 @@ class Window(QMainWindow):
         self.uaclient = UaClient()
 
         self.tree_ui = TreeWidget(self.ui.treeView)
+        self.tree_ui.model = TreeModel()
+        self.tree_ui.view.setModel(self.tree_ui.model)
         self.tree_ui.error.connect(self.show_error)
         self.setup_context_menu_tree()
         self.ui.treeView.selectionModel().currentChanged.connect(
@@ -198,11 +198,8 @@ class Window(QMainWindow):
         data = self.settings.value("main_window_state", None)
         if data:
             self.restoreState(data)
-
         self.ui.connectButton.clicked.connect(self.connect)
         self.ui.disconnectButton.clicked.connect(self.disconnect)
-        # self.ui.treeView.expanded.connect(self._fit)
-
         self.ui.actionConnect.triggered.connect(self.connect)
         self.ui.actionDisconnect.triggered.connect(self.disconnect)
 

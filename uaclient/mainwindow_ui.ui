@@ -30,7 +30,7 @@
       <property name="orientation">
        <enum>Qt::Horizontal</enum>
       </property>
-      <widget class="QTreeView" name="treeView">
+      <widget class="OPCTreeView" name="treeView">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
          <horstretch>0</horstretch>
@@ -501,6 +501,13 @@
   </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
+ <customwidgets>
+  <customwidget>
+   <class>OPCTreeView</class>
+   <extends>QTreeView</extends>
+   <header>uaclient/tree/opctreeview</header>
+  </customwidget>
+ </customwidgets>
  <tabstops>
   <tabstop>addrComboBox</tabstop>
   <tabstop>connectOptionButton</tabstop>
