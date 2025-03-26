@@ -12,3 +12,5 @@ exclude =
     build,
     # There's no value in checking cache directories
     __pycache__,
+    # Don't check auto-generated code
+    *_ui.py,

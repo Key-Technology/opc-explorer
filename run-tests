@@ -31,7 +31,7 @@ dir=$(CDPATH="" cd -- "$(dirname -- "$0")" && pwd)
 
 if [ "$run_static" = true ]; then
 	echo "Running black..."
-	python3 -m black --check --diff "$dir"
+	python3 -m black --check --exclude '.*_ui.py' --diff "$dir"
 
 	# Run flake8
 	echo "Running flake8..."

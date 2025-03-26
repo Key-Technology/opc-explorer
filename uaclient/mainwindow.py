@@ -15,7 +15,7 @@ from PyQt5.QtCore import (
     QItemSelection,
     QCoreApplication,
 )
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QMainWindow,
     QMessageBox,
@@ -31,13 +31,11 @@ from uaclient.uaclient import UaClient
 from uaclient.mainwindow_ui import Ui_MainWindow
 from uaclient.connection_dialog import ConnectionDialog
 from uaclient.application_certificate_dialog import ApplicationCertificateDialog
-from uaclient.graphwidget import GraphUI
 
 # must be here for resources even if not used
 from uawidgets import resources  # noqa: F401
 from uawidgets.attrs_widget import AttrsWidget
 from uawidgets.tree_widget import TreeWidget
-from uawidgets.refs_widget import RefsWidget
 from uawidgets.utils import trycatchslot
 from uawidgets.logger import QtHandler
 from uawidgets.call_method_dialog import CallMethodDialog
@@ -53,76 +51,6 @@ class EventHandler(QObject):
         self.event_fired.emit(event)
 
 
-class EventUI(object):
-    def __init__(self, window, uaclient):
-        self.window = window
-        self.uaclient = uaclient
-        self._handler = EventHandler()
-        self._subscribed_nodes = []  # FIXME: not really needed
-        self.model = QStandardItemModel()
-        self.window.ui.evView.setModel(self.model)
-        self.window.ui.actionSubscribeEvent.triggered.connect(self._subscribe)
-        self.window.ui.actionUnsubscribeEvents.triggered.connect(self._unsubscribe)
-        # context menu
-        self.window.addAction(self.window.ui.actionSubscribeEvent)
-        self.window.addAction(self.window.ui.actionUnsubscribeEvents)
-        self.window.addAction(self.window.ui.actionAddToGraph)
-        self._handler.event_fired.connect(
-            self._update_event_model, type=Qt.QueuedConnection
-        )
-
-        # accept drops
-        self.model.canDropMimeData = self.canDropMimeData
-        self.model.dropMimeData = self.dropMimeData
-
-    def canDropMimeData(self, mdata, action, row, column, parent):
-        return True
-
-    def show_error(self, *args):
-        self.window.show_error(*args)
-
-    def dropMimeData(self, mdata, action, row, column, parent):
-        node = self.uaclient.client.get_node(mdata.text())
-        self._subscribe(node)
-        return True
-
-    def clear(self):
-        self._subscribed_nodes = []
-        self.model.clear()
-
-    @trycatchslot
-    def _subscribe(self, node=None):
-        logger.info("Subscribing to %s", node)
-        if not node:
-            node = self.window.get_current_node()
-            if node is None:
-                return
-        if node in self._subscribed_nodes:
-            logger.info("already subscribed to event for node: %s", node)
-            return
-        logger.info("Subscribing to events for %s", node)
-        self.window.ui.evDockWidget.raise_()
-        try:
-            self.uaclient.subscribe_events(node, self._handler)
-        except Exception as ex:
-            self.window.show_error(ex)
-            raise
-        else:
-            self._subscribed_nodes.append(node)
-
-    @trycatchslot
-    def _unsubscribe(self):
-        node = self.window.get_current_node()
-        if node is None:
-            return
-        self._subscribed_nodes.remove(node)
-        self.uaclient.unsubscribe_events(node)
-
-    @trycatchslot
-    def _update_event_model(self, event):
-        self.model.appendRow([QStandardItem(str(event))])
-
-
 class Window(QMainWindow):
     def __init__(self):
         QMainWindow.__init__(self)
@@ -134,9 +62,6 @@ class Window(QMainWindow):
         # remove dock titlebar for addressbar
         w = QWidget()
         self.ui.addrDockWidget.setTitleBarWidget(w)
-        # tabify some docks
-        self.tabifyDockWidget(self.ui.evDockWidget, self.ui.refDockWidget)
-        self.tabifyDockWidget(self.ui.refDockWidget, self.ui.graphDockWidget)
 
         # we only show statusbar in case of errors
         self.ui.statusBar.hide()
@@ -171,19 +96,14 @@ class Window(QMainWindow):
             self._update_actions_state
         )
 
-        self.refs_ui = RefsWidget(self.ui.refView)
-        self.refs_ui.error.connect(self.show_error)
         self.attrs_ui = AttrsWidget(self.ui.attrView)
         self.attrs_ui.error.connect(self.show_error)
-        self.event_ui = EventUI(self, self.uaclient)
-        self.graph_ui = GraphUI(self, self.uaclient)
 
         self.ui.addrComboBox.currentTextChanged.connect(self._uri_changed)
         self._uri_changed(
             self.ui.addrComboBox.currentText()
         )  # force update for current value at startup
 
-        self.ui.treeView.selectionModel().selectionChanged.connect(self.show_refs)
         self.ui.actionCopyPath.triggered.connect(self.tree_ui.copy_path)
         self.ui.actionCopyNodeId.triggered.connect(self.tree_ui.copy_nodeid)
         self.ui.actionCall.triggered.connect(self.call_method)
@@ -237,16 +157,6 @@ class Window(QMainWindow):
             self.uaclient.application_certificate_path = dia.certificate_path
             self.uaclient.application_private_key_path = dia.private_key_path
         self.uaclient.save_application_certificate_settings()
-
-    @trycatchslot
-    def show_refs(self, selection):
-        if isinstance(selection, QItemSelection):
-            if not selection.indexes():  # no selection
-                return
-
-        node = self.get_current_node()
-        if node:
-            self.refs_ui.show_refs(node)
 
     @trycatchslot
     def show_attrs(self, selection):
@@ -306,14 +216,11 @@ class Window(QMainWindow):
         finally:
             self.save_current_node()
             self.tree_ui.clear()
-            self.refs_ui.clear()
             self.attrs_ui.clear()
-            self.event_ui.clear()
 
     def closeEvent(self, event):
         self.tree_ui.save_state()
         self.attrs_ui.save_state()
-        self.refs_ui.save_state()
         self.settings.setValue("main_window_width", self.size().width())
         self.settings.setValue("main_window_height", self.size().height())
         self.settings.setValue("main_window_state", self.saveState())
