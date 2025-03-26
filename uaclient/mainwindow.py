@@ -142,8 +142,8 @@ class Window(QMainWindow):
         self.ui.statusBar.hide()
 
         # setup QSettings for application and get a settings object
-        QCoreApplication.setOrganizationName("FreeOpcUa")
-        QCoreApplication.setApplicationName("OpcUaClient")
+        QCoreApplication.setOrganizationName("Key Technology")
+        QCoreApplication.setApplicationName("OPC Explorer")
         self.settings = QSettings()
 
         self._address_list = self.settings.value(
