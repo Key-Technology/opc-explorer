@@ -6,7 +6,7 @@ setup(
     version="0.8.4",
     description="OPC Explorer",
     author="Key Technology",
-    python_requires=">=3.8,<3.11",  # Only expand this as we add tests for them
+    python_requires=">=3.8,<3.12",  # Only expand this as we add tests for them
     url="https://github.com/Key-Technology/opc-explorer",
     packages=["uaclient", "uaclient.theme"],
     license="GNU General Public License",
