@@ -43,5 +43,5 @@ if [ "$run_static" = true ]; then
 fi
 
 if [ "$run_unit" = true ]; then
-	python3 -m pytest --cov=uaclient
+	python3 -m pytest --cov=uaclient --cov-report term --cov-report html
 fi
