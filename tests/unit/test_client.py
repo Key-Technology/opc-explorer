@@ -37,7 +37,7 @@ def test_select_server_node(client, server):
 
 
 def test_connect(server, url, client):
-    assert client._address_list[0] == "opc.tcp://localhost:48400/freeopcua/server/"
+    assert client._address_list[0] == "opc.tcp://localhost:48401/freeopcua/server/"
     assert client.uaclient._connected
     current_node = client.tree_ui.get_current_node()
     assert (

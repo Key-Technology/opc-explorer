@@ -5,7 +5,7 @@ from uaclient.mainwindow import Window
 
 @pytest.fixture(scope="module")
 def url():
-    yield "opc.tcp://localhost:48400/freeopcua/server/"
+    yield "opc.tcp://localhost:48401/freeopcua/server/"
 
 
 @pytest.fixture(scope="module")
