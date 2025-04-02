@@ -1,10 +1,10 @@
 [flake8]
-ignore =
+extend-ignore =
     # let black handle this
     E501,
     # http://hexbyteinc.com/ambv-black/#line-breaks--binary-operators
     W503
-exclude =
+extend-exclude =
     # No need to traverse our git directory
     .git,
     .mypy_cache,
