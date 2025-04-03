@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+import contextlib
 
 from asyncua import Server
 from asyncua.sync import Server as SyncServer
@@ -31,18 +32,29 @@ def server(url):
     server.stop()
 
 
+@pytest.fixture(scope="session")
+def application():
+    from qasync import QApplication
+
+    app = QApplication([])
+    yield app
+    app.quit()
+    app.deleteLater()
+
+
 @pytest.fixture
-def client(qtbot, url):
+def client(application, url):
     client = Window()
-    qtbot.addWidget = client
     client.ui.addrComboBox.setCurrentText(url)
     client.connect()
     yield client
     client.disconnect()
+    client.deleteLater()
 
 
 @pytest.fixture
 def wait_for_signal():
+    @contextlib.asynccontextmanager
     async def _signal_waiter(signal, *, timeout=1, check_params_callback=None):
         signal_received = asyncio.Event()
         calls = []
@@ -54,13 +66,13 @@ def wait_for_signal():
 
         signal.connect(_quit_loop)
 
+        yield
+
         try:
             await asyncio.wait_for(signal_received.wait(), timeout)
         except (TimeoutError, asyncio.TimeoutError):
             pytest.fail(
                 f"Timed out waiting to receive {signal.signal.lstrip('2')} signal"
             )
-
-        return calls
 
     return _signal_waiter

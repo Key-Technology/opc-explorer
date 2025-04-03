@@ -136,11 +136,14 @@ class Window(QMainWindow):
         self.uaclient.load_security_settings(uri)
 
     def show_connection_dialog(self):
-        dia = ConnectionDialog(self, self.ui.addrComboBox.currentText())
-        dia.security_mode = self.uaclient.security_mode
-        dia.security_policy = self.uaclient.security_policy
-        dia.certificate_path = self.uaclient.user_certificate_path
-        dia.private_key_path = self.uaclient.user_private_key_path
+        dia = ConnectionDialog(
+            self,
+            self.ui.addrComboBox.currentText(),
+            self.uaclient.security_mode,
+            self.uaclient.security_policy,
+            self.uaclient.user_certificate_path,
+            self.uaclient.user_private_key_path,
+        )
         ret = dia.exec_()
         if ret:
             self.uaclient.security_mode = dia.security_mode
@@ -149,9 +152,11 @@ class Window(QMainWindow):
             self.uaclient.user_private_key_path = dia.private_key_path
 
     def show_application_certificate_dialog(self):
-        dia = ApplicationCertificateDialog(self)
-        dia.certificate_path = self.uaclient.application_certificate_path
-        dia.private_key_path = self.uaclient.application_private_key_path
+        dia = ApplicationCertificateDialog(
+            self,
+            self.uaclient.application_certificate_path,
+            self.uaclient.application_private_key_path,
+        )
         ret = dia.exec_()
         if ret == QDialog.Accepted:
             self.uaclient.application_certificate_path = dia.certificate_path

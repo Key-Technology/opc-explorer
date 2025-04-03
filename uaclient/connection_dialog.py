@@ -1,97 +1,107 @@
 from PyQt5.QtWidgets import QDialog, QFileDialog
 
+from qasync import asyncSlot
+
+from asyncua import Client
+
 from uaclient.connection_ui import Ui_ConnectionDialog
 from uawidgets.utils import trycatchslot
 
 
 class ConnectionDialog(QDialog):
-    def __init__(self, parent, uri):
-        QDialog.__init__(self)
-        self.ui = Ui_ConnectionDialog()
-        self.ui.setupUi(self)
+    def __init__(
+        self,
+        parent,
+        uri,
+        security_mode,
+        security_policy,
+        user_certificate_path,
+        user_private_key_path,
+    ):
+        super().__init__(parent)
 
-        self.uaclient = parent.uaclient
-        self.uri = uri
-        self.parent = parent
+        self._uri = uri
+        self._security_mode = security_mode
+        self._security_policy = security_policy
+        self._user_certificate_path = user_certificate_path
+        self._user_private_key_path = user_private_key_path
 
-        self.ui.modeComboBox.addItem("None")
-        self.ui.modeComboBox.addItem("Sign")
-        self.ui.modeComboBox.addItem("SignAndEncrypt")
+        self._setup_ui()
 
-        self.ui.policyComboBox.addItem("None")
-        self.ui.policyComboBox.addItem("Basic128Rsa15")
-        self.ui.policyComboBox.addItem("Basic256")
+    def _setup_ui(self) -> None:
+        self._ui = Ui_ConnectionDialog()
+        self._ui.setupUi(self)
 
-        self.ui.closeButton.clicked.connect(self.accept)
-        self.ui.certificateButton.clicked.connect(self.get_certificate)
-        self.ui.privateKeyButton.clicked.connect(self.get_private_key)
-        self.ui.queryButton.clicked.connect(self.query)
+        self._ui.modeComboBox.addItem("None")
+        self._ui.modeComboBox.addItem("Sign")
+        self._ui.modeComboBox.addItem("SignAndEncrypt")
+        self._ui.modeComboBox.setCurrentText(self._security_mode)
 
+        self._ui.policyComboBox.addItem("None")
+        self._ui.policyComboBox.addItem("Basic128Rsa15")
+        self._ui.policyComboBox.addItem("Basic256")
+        self._ui.policyComboBox.setCurrentText(self._security_policy)
+
+        self._ui.certificateLabel.setText(self._user_certificate_path)
+        self._ui.privateKeyLabel.setText(self._user_private_key_path)
+
+        self._ui.closeButton.clicked.connect(self.accept)
+        self._ui.certificateButton.clicked.connect(self._get_certificate)
+        self._ui.privateKeyButton.clicked.connect(self._get_private_key)
+        self._ui.queryButton.clicked.connect(self._query)
+
+    @asyncSlot()
     @trycatchslot
-    def query(self):
-        self.ui.modeComboBox.clear()
-        self.ui.policyComboBox.clear()
-        endpoints = self.parent.uaclient.get_endpoints(self.uri)
+    async def _query(self) -> None:
+        self._ui.modeComboBox.clear()
+        self._ui.policyComboBox.clear()
+
+        client = Client(self._uri, timeout=2)
+        endpoints = await client.connect_and_get_server_endpoints()
         modes = []
         policies = []
         for edp in endpoints:
             mode = edp.SecurityMode.name
             if mode not in modes:
-                self.ui.modeComboBox.addItem(mode)
+                self._ui.modeComboBox.addItem(mode)
                 modes.append(mode)
             policy = edp.SecurityPolicyUri.split("#")[1]
             if policy not in policies:
-                self.ui.policyComboBox.addItem(policy)
+                self._ui.policyComboBox.addItem(policy)
                 policies.append(policy)
 
     @property
     def security_mode(self):
-        text = self.ui.modeComboBox.currentText()
+        text = self._ui.modeComboBox.currentText()
         if text == "None":
             return None
         return text
-
-    @security_mode.setter
-    def security_mode(self, value):
-        self.ui.modeComboBox.setCurrentText(value)
 
     @property
     def security_policy(self):
-        text = self.ui.policyComboBox.currentText()
+        text = self._ui.policyComboBox.currentText()
         if text == "None":
             return None
         return text
 
-    @security_policy.setter
-    def security_policy(self, value):
-        self.ui.policyComboBox.setCurrentText(value)
-
     @property
     def certificate_path(self):
-        return self.ui.certificateLabel.text()
-
-    @certificate_path.setter
-    def certificate_path(self, value):
-        self.ui.certificateLabel.setText(value)
+        return self._ui.certificateLabel.text()
 
     @property
     def private_key_path(self):
-        return self.ui.privateKeyLabel.text()
+        return self._ui.privateKeyLabel.text()
 
-    @private_key_path.setter
-    def private_key_path(self, value):
-        self.ui.privateKeyLabel.setText(value)
-
-    def get_certificate(self):
+    def _get_certificate(self):
         path, ok = QFileDialog.getOpenFileName(
             self, "Select certificate", self.certificate_path, "Certificate (*.der)"
         )
         if ok:
-            self.ui.certificateLabel.setText(path)
+            self._ui.certificateLabel.setText(path)
 
-    def get_private_key(self):
+    def _get_private_key(self):
         path, ok = QFileDialog.getOpenFileName(
             self, "Select private key", self.private_key_path, "Private key (*.pem)"
         )
         if ok:
-            self.ui.privateKeyLabel.setText(path)
+            self._ui.privateKeyLabel.setText(path)

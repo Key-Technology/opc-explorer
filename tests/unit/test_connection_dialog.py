@@ -1,43 +1,40 @@
 import pytest
 from uaclient.connection_dialog import ConnectionDialog
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 from PyQt5.QtWidgets import QFileDialog
 
 
 @pytest.fixture
-def uaclient():
-    uaclient = Mock()
-    yield uaclient
+def dialog(application):
+    dialog = ConnectionDialog(
+        None,
+        "test uri",
+        "test security mode",
+        "test security policy",
+        "test user cert",
+        "test user key",
+    )
+    yield dialog
+    dialog.deleteLater()
 
 
-@pytest.fixture
-def parent(uaclient):
-    parent = Mock()
-    parent.uaclient = uaclient
-    yield parent
-
-
-def test_get_certificate(qtbot, parent, uaclient, url):
-    cd = ConnectionDialog(parent, url)
-    qtbot.addWidget = cd
+def test_get_certificate(dialog):
     with patch.object(
         QFileDialog, "getOpenFileName", return_value=("/test/path", True)
-    ) as dialog:
-        cd.get_certificate()
-        dialog.assert_called_once_with(
-            cd, "Select certificate", "None", "Certificate (*.der)"
+    ) as mock:
+        dialog._get_certificate()
+        mock.assert_called_once_with(
+            dialog, "Select certificate", "test user cert", "Certificate (*.der)"
         )
-        assert cd.ui.certificateLabel.text() == "/test/path"
+        assert dialog.certificate_path == "/test/path"
 
 
-def test_get_private_key(qtbot, parent, uaclient, url):
-    cd = ConnectionDialog(parent, url)
-    qtbot.addWidget = cd
+def test_get_private_key(dialog):
     with patch.object(
         QFileDialog, "getOpenFileName", return_value=("/test/path", True)
-    ) as dialog:
-        cd.get_private_key()
-        dialog.assert_called_once_with(
-            cd, "Select private key", "None", "Private key (*.pem)"
+    ) as mock:
+        dialog._get_private_key()
+        mock.assert_called_once_with(
+            dialog, "Select private key", "test user key", "Private key (*.pem)"
         )
-        assert cd.ui.privateKeyLabel.text() == "/test/path"
+        assert dialog.private_key_path == "/test/path"

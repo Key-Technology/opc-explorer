@@ -11,10 +11,12 @@ from uaclient.attrs_ui import AttrsWidget
 
 
 @pytest.fixture
-def widget(qtbot):
+def widget(application):
     view = QTreeView()
-    qtbot.addWidget(view)
-    return AttrsWidget(view, {})
+    widget = AttrsWidget(view, {})
+    yield widget
+    widget.deleteLater()
+    view.deleteLater()
 
 
 @pytest.fixture
@@ -48,10 +50,11 @@ def modify_item(widget, wait_for_signal):
             editor.setCurrentText(val)
         else:
             editor.setText(val)
-        widget.view.commitData(editor)
-        widget.view.closeEditor(editor, QAbstractItemDelegate.NoHint)
-        widget.view.reset()
-        await wait_for_signal(widget.attr_written)
+
+        async with wait_for_signal(widget.attr_written):
+            widget.view.commitData(editor)
+            widget.view.closeEditor(editor, QAbstractItemDelegate.NoHint)
+            widget.view.reset()
 
     return _modify
 

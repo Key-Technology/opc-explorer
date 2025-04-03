@@ -10,7 +10,7 @@ from uaclient.tree_ui import OpcTreeItem
 
 
 @pytest.fixture
-def mock_model():
+def mock_model(application):
     yield create_autospec(QAbstractItemModel)
 
 
@@ -78,7 +78,7 @@ async def test_row_without_parent(mock_model, async_server):
     assert item.row() == 0
 
 
-async def test_row_with_parent(qtbot, mock_model, async_server):
+async def test_row_with_parent(mock_model, async_server):
     mock_model.index.return_value = QModelIndex()
 
     index = await async_server.register_namespace("test")
@@ -95,7 +95,7 @@ async def test_row_with_parent(qtbot, mock_model, async_server):
     assert item.child(0).row() == 0
 
 
-async def test_row_multiple_children(qtbot, mock_model, async_server):
+async def test_row_multiple_children(mock_model, async_server):
     mock_model.index.return_value = QModelIndex()
 
     index = await async_server.register_namespace("test")
@@ -208,7 +208,7 @@ async def test_add_child_reversed(mock_model, async_server):
     assert root_item.child(1) == item2
 
 
-async def test_refresh_children(qtbot, mock_model, async_server):
+async def test_refresh_children(mock_model, async_server, wait_for_signal):
     index = await async_server.register_namespace("test")
     node = await async_server.nodes.objects.add_object(index, "TestObject")
     child = await node.add_variable(index, "TestVariable", 42)
@@ -222,10 +222,11 @@ async def test_refresh_children(qtbot, mock_model, async_server):
 
     assert not item.children_fetched()
 
-    with qtbot.waitSignal(item.item_added, timeout=0) as blocker:
+    async with wait_for_signal(
+        item.item_added, check_params_callback=lambda item: item.node == child
+    ):
         await item.refresh_children()
 
-    assert blocker.args[0].node == child
     assert item.child_count() == 1
     assert item.children_fetched()
 
@@ -233,7 +234,7 @@ async def test_refresh_children(qtbot, mock_model, async_server):
     mock_model.endInsertRows.assert_called_with()
 
 
-async def test_clear_children(qtbot, mock_model, async_server):
+async def test_clear_children(mock_model, async_server, wait_for_signal):
     mock_model.index.return_value = QModelIndex()
 
     index = await async_server.register_namespace("test")
@@ -245,12 +246,13 @@ async def test_clear_children(qtbot, mock_model, async_server):
     )
     await item._refresh_data()
     await item.refresh_children()
-
     assert item.children_fetched()
-    with qtbot.waitSignal(item.item_removed, timeout=0) as blocker:
+
+    async with wait_for_signal(
+        item.item_removed, check_params_callback=lambda item: item.node == child
+    ):
         item.clear_children()
 
-    assert blocker.args[0].node == child
     assert item.child_count() == 0
     assert not item.children_fetched()
 
@@ -258,7 +260,7 @@ async def test_clear_children(qtbot, mock_model, async_server):
     mock_model.endRemoveRows.assert_called_with()
 
 
-async def test_set_data(qtbot, mock_model, async_server):
+async def test_set_data(mock_model, async_server, wait_for_signal):
     mock_model.index.return_value = QModelIndex()
 
     item = OpcTreeItem(
@@ -268,7 +270,7 @@ async def test_set_data(qtbot, mock_model, async_server):
         [ua.AttributeIds.Value],
     )
 
-    with qtbot.waitSignal(item.data_changed, timeout=0):
+    async with wait_for_signal(item.data_changed):
         item.set_data(ua.AttributeIds.Value, ua.DataValue(42))
 
 
