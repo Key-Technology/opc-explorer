@@ -43,13 +43,13 @@ def application():
 
 
 @pytest.fixture
-def client(application, url):
-    client = Window()
-    client.ui.addrComboBox.setCurrentText(url)
-    client.connect()
-    yield client
-    client.disconnect()
-    client.deleteLater()
+async def mainwindow(application, url, async_server):
+    window = Window(use_settings=False)
+    window._ui.addrComboBox.setCurrentText(url)
+    await window._connect()
+    yield window
+    await window._disconnect()
+    window.deleteLater()
 
 
 @pytest.fixture

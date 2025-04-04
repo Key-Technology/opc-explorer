@@ -1,318 +1,373 @@
 #! /usr/bin/env python3
 
 import sys
-
+import asyncio
+import contextlib
+import collections
+import functools
 import logging
+from typing import Any, Dict, List
 
+from qasync import QEventLoop, QApplication, asyncClose, asyncSlot
 from PyQt5.QtCore import (
-    pyqtSignal,
-    QFile,
-    QTimer,
-    Qt,
-    QObject,
-    QSettings,
-    QTextStream,
-    QItemSelection,
     QCoreApplication,
+    QSettings,
+    pyqtSignal,
+    QObject,
+    QTimer,
+    QItemSelection,
+    QSignalBlocker,
 )
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (
-    QMainWindow,
-    QMessageBox,
-    QWidget,
-    QApplication,
-    QMenu,
-    QDialog,
-)
+from PyQt5.QtWidgets import QMainWindow, QWidget, QAbstractItemView, QDialog
 
-from asyncua import ua
-
-from uaclient.uaclient import UaClient
-from uaclient.mainwindow_ui import Ui_MainWindow
-from uaclient.connection_dialog import ConnectionDialog
-from uaclient.application_certificate_dialog import ApplicationCertificateDialog
+from asyncua import Client, Node
+from asyncua import crypto
+from asyncua.common.subscription import Subscription, DataChangeNotif
+from asyncua.ua import NodeId, AttributeIds, DataValue, MessageSecurityMode
+import asyncua.ua.uaerrors
 
 # must be here for resources even if not used
 from uawidgets import resources  # noqa: F401
-from uawidgets.attrs_widget import AttrsWidget
-from uawidgets.tree_widget import TreeWidget
-from uawidgets.utils import trycatchslot
-from uawidgets.logger import QtHandler
-from uawidgets.call_method_dialog import CallMethodDialog
 
+from uaclient.mainwindow_ui import Ui_MainWindow
+from uaclient import tree_ui
+from uaclient import attrs_ui
+from uaclient.connection_dialog import ConnectionDialog
+from uaclient.application_certificate_dialog import ApplicationCertificateDialog
 
 logger = logging.getLogger(__name__)
 
+_SubscriptionData = collections.namedtuple("_SubscriptionData", ["handle", "signal"])
 
-class EventHandler(QObject):
-    event_fired = pyqtSignal(object)
 
-    def event_notification(self, event):
-        self.event_fired.emit(event)
+class _SubscriptionSignal(QObject):
+    signal = pyqtSignal(DataValue)
+
+
+class _DataChangeHandler:
+    def __init__(self, _callback) -> None:
+        self._callback = _callback
+
+    async def datachange_notification(
+        self, node: Node, _value: Any, data: DataChangeNotif
+    ):
+        await self._callback(node, data.monitored_item.Value)
 
 
 class Window(QMainWindow):
-    def __init__(self):
-        QMainWindow.__init__(self)
-        self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)
-        self.setWindowIcon(QIcon(":/network.svg"))
+    def __init__(self, *, use_settings=True) -> None:
+        super().__init__()
 
-        # fix stuff imposible to do in qtdesigner
-        # remove dock titlebar for addressbar
-        w = QWidget()
-        self.ui.addrDockWidget.setTitleBarWidget(w)
+        self._use_settings = (
+            use_settings  # Support not using settings files (for tests)
+        )
 
-        # we only show statusbar in case of errors
-        self.ui.statusBar.hide()
+        self._uaclient: Client = None
+        self._ua_subscription: Subscription = None
+        self._ua_subscription_data: Dict[NodeId, _SubscriptionData] = dict()
+        self._application_certificate_path = None
+        self._application_private_key_path = None
+        self._user_certificate_path = None
+        self._user_private_key_path = None
+        self._security_mode = None
+        self._security_policy = None
+        self._address_list: List[str] = []
 
+        self._setup_settings()
+        self._setup_ui()
+        self._load_state()
+
+    @asyncClose
+    async def closeEvent(self, event):
+        self._save_state()
+        await self._disconnect()
+        event.accept()
+
+    def _setup_settings(self):
         # setup QSettings for application and get a settings object
         QCoreApplication.setOrganizationName("Key Technology")
         QCoreApplication.setApplicationName("OPC Explorer")
-        self.settings = QSettings()
+        self._settings = QSettings()
 
-        self._address_list = self.settings.value(
-            "address_list",
-            [
-                "opc.tcp://localhost:4840",
-                "opc.tcp://localhost:53530/OPCUA/SimulationServer/",
-            ],
+    def _setup_ui(self):
+        self._ui = Ui_MainWindow()
+        self._ui.setupUi(self)
+        self.setWindowIcon(QIcon(":/network.svg"))
+
+        # we only show statusbar in case of errors
+        self._ui.statusBar.hide()
+
+        self._setup_ui_tree()
+        self._setup_ui_attrs()
+        self._setup_ui_dock()
+        self._setup_ui_connect_disconnect()
+        self._setup_ui_connection_dialog()
+        self._setup_ui_application_certificate_dialog()
+
+    def _setup_ui_tree(self):
+        self._model = tree_ui.OpcTreeModel(
+            self._ui.treeView, [AttributeIds.DisplayName, AttributeIds.Value]
         )
-        print("ADR", self._address_list)
-        self._address_list_max_count = int(
-            self.settings.value("address_list_max_count", 10)
+        self._model.item_added.connect(self._subscribe_to_node)
+        self._model.item_removed.connect(self._unsubscribe_from_node)
+
+        self._ui.treeView.header().setSectionResizeMode(0)
+        self._ui.treeView.header().setStretchLastSection(True)
+        self._ui.treeView.setSelectionBehavior(QAbstractItemView.SelectRows)
+
+    def _setup_ui_attrs(self):
+        self._attrs_ui = attrs_ui.AttrsWidget(
+            self._ui.attrView, self._ua_subscription_data
+        )
+        self._attrs_ui.error.connect(self._show_error)
+
+        self._ui.treeView.selectionModel().selectionChanged.connect(
+            self._handle_selection
+        )
+        self._ui.attrRefreshButton.clicked.connect(self._attrs_ui.reload)
+
+    def _setup_ui_dock(self):
+        # fix stuff imposible to do in qtdesigner
+        # remove dock titlebar for addressbar
+        w = QWidget()
+        self._ui.addrDockWidget.setTitleBarWidget(w)
+
+    def _setup_ui_connect_disconnect(self):
+        self._ui.connectButton.clicked.connect(self._connect)
+        self._ui.actionConnect.triggered.connect(self._connect)
+
+        self._ui.disconnectButton.clicked.connect(self._disconnect)
+        self._ui.actionDisconnect.triggered.connect(self._disconnect)
+
+    def _setup_ui_connection_dialog(self):
+        self._ui.connectOptionButton.clicked.connect(self._show_connection_dialog)
+
+    def _setup_ui_application_certificate_dialog(self):
+        self._ui.actionClient_Application_Certificate.triggered.connect(
+            self._show_application_certificate_dialog
         )
 
-        # init widgets
-        for addr in self._address_list:
-            self.ui.addrComboBox.insertItem(100, addr)
+    def _save_state(self):
+        if not self._use_settings:
+            return
 
-        self.uaclient = UaClient()
-
-        self.tree_ui = TreeWidget(self.ui.treeView)
-        self.tree_ui.error.connect(self.show_error)
-        self.setup_context_menu_tree()
-        self.ui.treeView.selectionModel().currentChanged.connect(
-            self._update_actions_state
+        self._settings.setValue("main_window/geometry", self.saveGeometry())
+        self._settings.setValue("main_window/state", self.saveState())
+        self._settings.setValue("main_window/address_list", self._address_list)
+        self._settings.setValue(
+            "tree_view/header/state", self._ui.treeView.header().saveState()
         )
 
-        self.attrs_ui = AttrsWidget(self.ui.attrView)
-        self.attrs_ui.error.connect(self.show_error)
-
-        self.ui.addrComboBox.currentTextChanged.connect(self._uri_changed)
-        self._uri_changed(
-            self.ui.addrComboBox.currentText()
-        )  # force update for current value at startup
-
-        self.ui.actionCopyPath.triggered.connect(self.tree_ui.copy_path)
-        self.ui.actionCopyNodeId.triggered.connect(self.tree_ui.copy_nodeid)
-        self.ui.actionCall.triggered.connect(self.call_method)
-
-        self.ui.treeView.selectionModel().selectionChanged.connect(self.show_attrs)
-        self.ui.attrRefreshButton.clicked.connect(self.show_attrs)
-
-        self.resize(
-            int(self.settings.value("main_window_width", 800)),
-            int(self.settings.value("main_window_height", 600)),
+        self._settings.setValue(
+            "opc_client/certificate", self._application_certificate_path
         )
-        data = self.settings.value("main_window_state", None)
-        if data:
+        self._settings.setValue("opc_client/key", self._application_private_key_path)
+        self._settings.setValue(
+            "opc_client/user_certificate", self._user_certificate_path
+        )
+        self._settings.setValue("opc_client/user_key", self._user_private_key_path)
+        self._settings.setValue("opc_client/security_mode", self._security_mode)
+        self._settings.setValue("opc_client/security_policy", self._security_policy)
+
+        self._settings.beginGroup("attrs_widget")
+        self._attrs_ui.save_state(self._settings)
+        self._settings.endGroup()
+
+    def _load_state(self):
+        if not self._use_settings:
+            return
+
+        data = self._settings.value("main_window/geometry", None)
+        if data is not None:
+            self.restoreGeometry(data)
+
+        data = self._settings.value("main_window/state", None)
+        if data is not None:
             self.restoreState(data)
 
-        self.ui.connectButton.clicked.connect(self.connect)
-        self.ui.disconnectButton.clicked.connect(self.disconnect)
-        # self.ui.treeView.expanded.connect(self._fit)
+        self._address_list = self._settings.value("main_window/address_list", [])
+        for addr in self._address_list:
+            self._ui.addrComboBox.insertItem(100, addr)
 
-        self.ui.actionConnect.triggered.connect(self.connect)
-        self.ui.actionDisconnect.triggered.connect(self.disconnect)
+        data = self._settings.value("tree_view/header/state", None)
+        if data is not None:
+            self._ui.treeView.header().restoreState(data)
 
-        self.ui.connectOptionButton.clicked.connect(self.show_connection_dialog)
-        self.ui.actionClient_Application_Certificate.triggered.connect(
-            self.show_application_certificate_dialog
+        self._application_certificate_path = self._settings.value(
+            "opc_client/certificate", None
         )
-        self.ui.actionDark_Mode.triggered.connect(self.dark_mode)
+        self._application_private_key_path = self._settings.value(
+            "opc_client/key", None
+        )
+        self._user_certificate_path = self._settings.value(
+            "opc_client/user_certificate", None
+        )
+        self._user_private_key_path = self._settings.value("opc_client/user_key", None)
+        self._security_mode = self._settings.value("opc_client/security_mode", None)
+        self._security_policy = self._settings.value("opc_client/security_policy", None)
 
-    def _uri_changed(self, uri):
-        self.uaclient.load_security_settings(uri)
+        self._settings.beginGroup("attrs_widget")
+        self._attrs_ui.load_state(self._settings)
+        self._settings.endGroup()
 
-    def show_connection_dialog(self):
+    async def _handle_subscription_data(self, node: Node, value: DataValue) -> None:
+        # Suppress KeyError because there might be a race condition
+        # between unsubscribing and receiving data, i.e. we might
+        # receive data for a subscription we just removed.
+        with contextlib.suppress(KeyError):
+            self._ua_subscription_data[node.nodeid].signal.signal.emit(value)
+
+    @asyncSlot(tree_ui.OpcTreeItem)
+    async def _subscribe_to_node(self, item: tree_ui.OpcTreeItem):
+        with contextlib.suppress(
+            asyncua.ua.uaerrors.BadAttributeIdInvalid,
+            asyncua.ua.uaerrors.BadTooManyMonitoredItems,
+        ):
+            subscription_data = _SubscriptionData(
+                await self._ua_subscription.subscribe_data_change(item.node),
+                _SubscriptionSignal(self),
+            )
+            self._ua_subscription_data[item.node.nodeid] = subscription_data
+            subscription_data.signal.signal.connect(
+                functools.partial(item.set_data, AttributeIds.Value)
+            )
+
+    @asyncSlot(tree_ui.OpcTreeItem)
+    async def _unsubscribe_from_node(self, item: tree_ui.OpcTreeItem):
+        try:
+            subscription_data = self._ua_subscription_data.pop(item.node.nodeid)
+        except KeyError:
+            return
+
+        # Disconnect signal from all slots, and unsubscribe from the OPC data
+        subscription_data.signal.signal.disconnect()
+        await self._ua_subscription.unsubscribe(subscription_data.handle)
+
+    @asyncSlot(QItemSelection, QItemSelection)
+    async def _handle_selection(
+        self, _selected: QItemSelection, _deselected: QItemSelection
+    ):
+        current_index = self._ui.treeView.currentIndex()
+        if not current_index.isValid():
+            return
+
+        item = current_index.internalPointer()
+        if item:
+            await self._attrs_ui.show_attrs(item.node)
+
+    def _show_connection_dialog(self):
         dia = ConnectionDialog(
             self,
-            self.ui.addrComboBox.currentText(),
-            self.uaclient.security_mode,
-            self.uaclient.security_policy,
-            self.uaclient.user_certificate_path,
-            self.uaclient.user_private_key_path,
+            self._ui.addrComboBox.currentText(),
+            self._security_mode,
+            self._security_policy,
+            self._user_certificate_path,
+            self._user_private_key_path,
         )
         ret = dia.exec_()
         if ret:
-            self.uaclient.security_mode = dia.security_mode
-            self.uaclient.security_policy = dia.security_policy
-            self.uaclient.user_certificate_path = dia.certificate_path
-            self.uaclient.user_private_key_path = dia.private_key_path
+            self._security_mode = dia.security_mode
+            self._security_policy = dia.security_policy
+            self._user_certificate_path = dia.certificate_path
+            self._user_private_key_path = dia.private_key_path
 
-    def show_application_certificate_dialog(self):
+    def _show_application_certificate_dialog(self):
         dia = ApplicationCertificateDialog(
-            self,
-            self.uaclient.application_certificate_path,
-            self.uaclient.application_private_key_path,
+            self, self._application_certificate_path, self._application_private_key_path
         )
         ret = dia.exec_()
         if ret == QDialog.Accepted:
-            self.uaclient.application_certificate_path = dia.certificate_path
-            self.uaclient.application_private_key_path = dia.private_key_path
-        self.uaclient.save_application_certificate_settings()
+            self._application_certificate_path = dia.certificate_path
+            self._application_private_key_path = dia.private_key_path
 
-    @trycatchslot
-    def show_attrs(self, selection):
-        if isinstance(selection, QItemSelection):
-            if not selection.indexes():  # no selection
-                return
-
-        node = self.get_current_node()
-        if node:
-            self.attrs_ui.show_attrs(node)
-
-    def show_error(self, msg):
-        logger.warning("showing error: %s")
-        self.ui.statusBar.show()
-        self.ui.statusBar.setStyleSheet(
-            "QStatusBar { background-color : red; color : black; }"
-        )
-        self.ui.statusBar.showMessage(str(msg))
-        QTimer.singleShot(1500, self.ui.statusBar.hide)
-
-    def get_current_node(self, idx=None):
-        return self.tree_ui.get_current_node(idx)
-
-    def get_uaclient(self):
-        return self.uaclient
-
-    @trycatchslot
-    def connect(self):
-        uri = self.ui.addrComboBox.currentText()
+    @asyncSlot()
+    async def _connect(self):
+        uri = self._ui.addrComboBox.currentText()
         uri = uri.strip()
+        self._uaclient = Client(url=uri)
+
+        if self._user_private_key_path:
+            await self._uaclient.load_private_key(self._user_private_key_path)
+        if self._user_certificate_path:
+            await self._uaclient.load_client_certificate(self._user_certificate_path)
+
+        if self._security_mode is not None and self._security_policy is not None:
+            await self._uaclient.set_security(
+                getattr(
+                    crypto.security_policies, "SecurityPolicy" + self._security_policy
+                ),
+                self._application_certificate_path,
+                self._application_private_key_path,
+                mode=getattr(MessageSecurityMode, self._security_mode),
+            )
+
         try:
-            self.uaclient.connect(uri)
+            await self._uaclient.connect()
         except Exception as ex:
-            self.show_error(ex)
+            self._show_error(ex)
             raise
 
-        self._update_address_list(uri)
-        self.tree_ui.set_root_node(self.uaclient.client.nodes.root)
-        self.ui.treeView.setFocus()
-        self.load_current_node()
+        self._save_new_uri(uri)
 
-    def _update_address_list(self, uri):
-        if uri == self._address_list[0]:
-            return
-        if uri in self._address_list:
-            self._address_list.remove(uri)
-        self._address_list.insert(0, uri)
-        if len(self._address_list) > self._address_list_max_count:
-            self._address_list.pop(-1)
+        self._ua_subscription = await self._uaclient.create_subscription(
+            500, _DataChangeHandler(self._handle_subscription_data)
+        )
 
-    def disconnect(self):
+        await self._model.set_root_node(self._uaclient.nodes.root)
+        self._ui.treeView.setFocus()
+
+    @asyncSlot()
+    async def _disconnect(self):
         try:
-            self.uaclient.disconnect()
+            if self._uaclient is not None and self._uaclient.uaclient.protocol:
+                await self._uaclient.disconnect()
         except Exception as ex:
-            self.show_error(ex)
+            self._show_error(ex)
             raise
         finally:
-            self.save_current_node()
-            self.tree_ui.clear()
-            self.attrs_ui.clear()
+            self._uaclient = None
+            self._ua_subscription = None
+            self._ua_subscription_data = dict()
 
-    def closeEvent(self, event):
-        self.tree_ui.save_state()
-        self.attrs_ui.save_state()
-        self.settings.setValue("main_window_width", self.size().width())
-        self.settings.setValue("main_window_height", self.size().height())
-        self.settings.setValue("main_window_state", self.saveState())
-        self.settings.setValue("address_list", self._address_list)
-        self.disconnect()
-        event.accept()
+            with QSignalBlocker(self._ui.treeView.selectionModel()):
+                self._attrs_ui.clear()
+                self._model.clear()
 
-    def save_current_node(self):
-        current_node = self.tree_ui.get_current_node()
-        if current_node:
-            mysettings = self.settings.value("current_node", None)
-            if mysettings is None:
-                mysettings = {}
-            uri = self.ui.addrComboBox.currentText()
-            mysettings[uri] = current_node.nodeid.to_string()
-            self.settings.setValue("current_node", mysettings)
-
-    def load_current_node(self):
-        mysettings = self.settings.value("current_node", None)
-        if mysettings is None:
-            return
-        uri = self.ui.addrComboBox.currentText()
-        if uri in mysettings:
-            nodeid = ua.NodeId.from_string(mysettings[uri])
-            node = self.uaclient.client.get_node(nodeid)
-            self.tree_ui.expand_to_node(node)
-
-    def setup_context_menu_tree(self):
-        self.ui.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.ui.treeView.customContextMenuRequested.connect(
-            self._show_context_menu_tree
+    def _show_error(self, msg):
+        logger.warning("showing error: %s")
+        self._ui.statusBar.show()
+        self._ui.statusBar.setStyleSheet(
+            "QStatusBar { background-color : red; color : black; }"
         )
-        self._contextMenu = QMenu()
-        self.addAction(self.ui.actionCopyPath)
-        self.addAction(self.ui.actionCopyNodeId)
-        self._contextMenu.addSeparator()
-        self._contextMenu.addAction(self.ui.actionCall)
-        self._contextMenu.addSeparator()
+        self._ui.statusBar.showMessage(str(msg))
+        QTimer.singleShot(1500, self._ui.statusBar.hide)
 
-    def addAction(self, action):
-        self._contextMenu.addAction(action)
+    def _save_new_uri(self, uri):
+        with contextlib.suppress(ValueError):
+            self._address_list.remove(uri)
 
-    @trycatchslot
-    def _update_actions_state(self, current, previous):
-        node = self.get_current_node(current)
-        self.ui.actionCall.setEnabled(False)
-        if node:
-            if node.read_node_class() == ua.NodeClass.Method:
-                self.ui.actionCall.setEnabled(True)
-
-    def _show_context_menu_tree(self, position):
-        node = self.tree_ui.get_current_node()
-        if node:
-            self._contextMenu.exec_(self.ui.treeView.viewport().mapToGlobal(position))
-
-    def call_method(self):
-        node = self.get_current_node()
-        dia = CallMethodDialog(self, self.uaclient.client, node)
-        dia.show()
-
-    def dark_mode(self):
-        self.settings.setValue("dark_mode", self.ui.actionDark_Mode.isChecked())
-
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Information)
-        msg.setText("Restart for changes to take effect")
-        msg.exec_()
+        self._address_list.insert(0, uri)
+        if len(self._address_list) > self._settings.value("address_list_max_count", 10):
+            self._address_list.pop(-1)
 
 
 def main():
     app = QApplication(sys.argv)
+
+    event_loop = QEventLoop(app)
+    asyncio.set_event_loop(event_loop)
+
+    app_close_event = asyncio.Event()
+    app.aboutToQuit.connect(app_close_event.set)
+
     client = Window()
-    handler = QtHandler(client.ui.logTextEdit)
-    logging.getLogger().addHandler(handler)
-    logging.getLogger("uaclient").setLevel(logging.INFO)
-    logging.getLogger("uawidgets").setLevel(logging.INFO)
-    # logging.getLogger("opcua").setLevel(logging.INFO)  # to enable logging of ua client library
-
-    # set stylesheet
-    if QSettings().value("dark_mode", "false") == "true":
-        file = QFile(":/dark.qss")
-        file.open(QFile.ReadOnly | QFile.Text)
-        stream = QTextStream(file)
-        app.setStyleSheet(stream.readAll())
-
     client.show()
-    sys.exit(app.exec_())
+
+    with event_loop:
+        event_loop.run_until_complete(app_close_event.wait())
+
+    return 0
 
 
 if __name__ == "__main__":
