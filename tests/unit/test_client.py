@@ -46,9 +46,8 @@ def test_connect(server, url, client):
     )
 
 
-def test_disconnect(qtbot, url, server):
+def test_disconnect(application, url, server):
     client = Window()
-    qtbot.addWidget = client
     client.ui.addrComboBox.setCurrentText(url)
     client.connect()
     current_node = client.tree_ui.get_current_node()
