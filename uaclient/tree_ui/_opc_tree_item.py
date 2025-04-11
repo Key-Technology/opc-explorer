@@ -220,10 +220,13 @@ class OpcTreeItem(QObject):
 
         if emit:
             # Emit signal letting subscribers know what data has changed here
-            index = QModelIndex(
-                self.persistent_index(self._ua_column_to_model_column[attribute])
-            )
-            self.data_changed.emit(index, index)
+            try:
+                index = QModelIndex(
+                    self.persistent_index(self._ua_column_to_model_column[attribute])
+                )
+                self.data_changed.emit(index, index)
+            except ValueError:
+                return
 
     def __eq__(self, other) -> bool:
         if isinstance(other, OpcTreeItem):
