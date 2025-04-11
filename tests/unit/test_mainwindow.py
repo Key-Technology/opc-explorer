@@ -2,9 +2,11 @@ from PyQt5.QtCore import Qt
 
 
 async def test_model_columns(mainwindow):
-    assert mainwindow._model.columnCount() == 2
+    assert mainwindow._model.columnCount() == 4
     assert mainwindow._model.headerData(0, Qt.Orientation.Horizontal) == "Display Name"
     assert mainwindow._model.headerData(1, Qt.Orientation.Horizontal) == "Value"
+    assert mainwindow._model.headerData(2, Qt.Orientation.Horizontal) == "Description"
+    assert mainwindow._model.headerData(3, Qt.Orientation.Horizontal) == "Data Type"
 
 
 async def test_model_is_updated_when_value_changes(
@@ -59,9 +61,9 @@ async def test_model_is_updated_when_value_changes(
     index = matches[0]
 
     # Confirm value
-    assert index.siblingAtColumn(1).data() == 42
+    assert index.siblingAtColumn(1).data() == "42"
 
     # Now change value in OPC and confirm it flows into the model via subscription
     async with wait_for_signal(tree_model.dataChanged):
         await variable_node.write_value(43)
-    assert index.siblingAtColumn(1).data() == 43
+    assert index.siblingAtColumn(1).data() == "43"

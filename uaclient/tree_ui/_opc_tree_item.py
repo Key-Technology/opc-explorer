@@ -1,6 +1,7 @@
 import asyncio
 import copy
 from typing import Optional, Any, List, Dict, cast
+from asyncua.common.ua_utils import val_to_string, data_type_to_string
 
 from PyQt5.QtCore import (
     QObject,
@@ -215,6 +216,14 @@ class OpcTreeItem(QObject):
             real_value = real_value.Text
         elif isinstance(real_value, ua.Variant):
             real_value = real_value.Value
+
+        if real_value is not None:
+            if attribute == ua.AttributeIds.Description:
+                real_value = str(real_value)
+            elif attribute == ua.AttributeIds.Value:
+                real_value = val_to_string(real_value)
+            elif attribute == ua.AttributeIds.DataType:
+                real_value = data_type_to_string(real_value)
 
         self._data[attribute] = real_value
 
