@@ -154,7 +154,13 @@ class Window(QMainWindow):
 
         self._settings.setValue("main_window/geometry", self.saveGeometry())
         self._settings.setValue("main_window/state", self.saveState())
-        self._settings.setValue("main_window/address_list", self._address_list)
+
+        self._settings.beginWriteArray("main_window/address_list")
+        for index, value in enumerate(self._address_list):
+            self._settings.setArrayIndex(index)
+            self._settings.setValue("address", value)
+        self._settings.endArray()
+
         self._settings.setValue(
             "tree_view/header/state", self._ui.treeView.header().saveState()
         )
@@ -186,7 +192,12 @@ class Window(QMainWindow):
         if data is not None:
             self.restoreState(data)
 
-        self._address_list = self._settings.value("main_window/address_list", [])
+        length = self._settings.beginReadArray("main_window/address_list")
+        for i in range(length):
+            self._settings.setArrayIndex(i)
+            self._address_list.append(self._settings.value("address"))
+        self._settings.endArray()
+
         for addr in self._address_list:
             self._ui.addrComboBox.insertItem(100, addr)
 
