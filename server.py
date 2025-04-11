@@ -21,6 +21,9 @@ async def _generate_values(server: Server, shutdown_event: asyncio.Event):
             return
         variable = await big_folder.add_variable(index, f"Variable {n}", n)
 
+    data_folder = await server.nodes.objects.add_folder(index, "Data")
+    await data_folder.add_data_type(index, "Test Data Type", "Test Description")
+
     dynamic_folder = await server.nodes.objects.add_folder(index, "Dynamic")
     variable = await dynamic_folder.add_variable(index, "TestVariable", 42)
 
