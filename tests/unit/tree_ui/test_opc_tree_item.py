@@ -125,7 +125,7 @@ async def test_data(mock_model, async_server):
     await item._refresh_data()
 
     assert item.data(0) == "TestVariable"
-    assert item.data(1) == 42
+    assert item.data(1) == "42"
 
 
 async def test_data_reversed(mock_model, async_server):
@@ -139,7 +139,7 @@ async def test_data_reversed(mock_model, async_server):
     )
     await item._refresh_data()
 
-    assert item.data(0) == 42
+    assert item.data(0) == "42"
     assert item.data(1) == "TestVariable"
 
 

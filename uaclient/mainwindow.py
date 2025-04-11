@@ -107,7 +107,13 @@ class Window(QMainWindow):
 
     def _setup_ui_tree(self):
         self._model = tree_ui.OpcTreeModel(
-            self._ui.treeView, [AttributeIds.DisplayName, AttributeIds.Value]
+            self._ui.treeView,
+            [
+                AttributeIds.DisplayName,
+                AttributeIds.Value,
+                AttributeIds.Description,
+                AttributeIds.DataType,
+            ],
         )
         self._model.item_added.connect(self._subscribe_to_node)
         self._model.item_removed.connect(self._unsubscribe_from_node)
