@@ -87,7 +87,7 @@ async def test_data(tree_view, async_server, wait_for_signal):
 
     assert model.data(root_index) == "TestObject"
     assert model.data(model.index(0, 0, root_index)) == "TestVariable"
-    assert model.data(model.index(0, 1, root_index)) == 42
+    assert model.data(model.index(0, 1, root_index)) == "42"
 
     # DecorationRole gets an icon
     assert isinstance(
