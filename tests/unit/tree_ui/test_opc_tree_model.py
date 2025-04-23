@@ -3,17 +3,17 @@ import pytest
 from unittest import mock
 
 from PyQt5.QtCore import Qt, QModelIndex
-from PyQt5.QtWidgets import QTreeView
 from PyQt5.QtGui import QIcon
 
 from asyncua import ua
 
 from uaclient.tree_ui import OpcTreeModel
+from uaclient.tree_ui import OPCTreeView
 
 
 @pytest.fixture
 def tree_view(application):
-    view = QTreeView()
+    view = OPCTreeView()
     yield view
     view.deleteLater()
 

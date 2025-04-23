@@ -44,7 +44,7 @@ class OpcTreeItem(QObject):
         self._value = None
         self._children_fetched = False
         self._type_definition = None
-
+    
         self._requested_columns = columns
         self._model_column_to_ua_column = dict(
             [(index, column) for index, column in enumerate(columns)]
@@ -54,6 +54,7 @@ class OpcTreeItem(QObject):
         )
 
         self._columns = copy.deepcopy(columns)
+        self.is_refreshing_children = False
 
         # We always need the node class to determine icon, even if it wasn't requested
         if ua.AttributeIds.NodeClass not in self._columns:
@@ -73,6 +74,7 @@ class OpcTreeItem(QObject):
             self.set_data(column, values[index].Value, emit=False)
 
     async def refresh_children(self) -> None:
+        self.is_refreshing_children = True
         self.clear_children()  # Clear first
 
         children = await self.node.get_children()
@@ -91,6 +93,7 @@ class OpcTreeItem(QObject):
         self._model.endInsertRows()
 
         self._children_fetched = True
+        self.is_refreshing_children = False
 
     def set_parent_index(self, index: QPersistentModelIndex) -> None:
         self._parent_index = index

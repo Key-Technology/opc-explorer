@@ -1,5 +1,4 @@
 from typing import Any, List, Union, Optional, overload
-
 from qasync import asyncSlot
 from PyQt5.QtCore import (
     Qt,
@@ -13,6 +12,7 @@ from PyQt5.QtCore import (
 from PyQt5.QtWidgets import QTreeView
 
 from asyncua import Node
+from asyncua import ua
 from asyncua.ua import AttributeIds
 from ._opc_tree_item import OpcTreeItem
 
@@ -58,10 +58,14 @@ class OpcTreeModel(QAbstractItemModel):
         self._root_item.data_changed.connect(self._handle_data_changed)
         self._root_item.item_added.connect(self.item_added)
         self._root_item.item_removed.connect(self.item_removed)
+        self._expand_tasks = None
 
         view.setModel(self)
         view.expanded.connect(self._handle_expanded)
         view.collapsed.connect(self._handle_collapsed)
+        view.shift_click_expand.connect(self.trigger_expand)
+        view.shift_click_collapse.connect(self.trigger_collapse)
+        self.view = view
 
     def index(
         self, row: int, column: int, parent: QModelIndex = QModelIndex()
@@ -172,7 +176,13 @@ class OpcTreeModel(QAbstractItemModel):
 
         # Refresh the children for the item that was just expanded
         item = index.internalPointer()
-        await item.refresh_children()
+
+        if not item.is_refreshing_children:
+            await item.refresh_children()
+
+        if self.view.hasShiftExpanded:
+            self.view.hasShiftExpanded = False
+            await self.custom_expand(index)
 
     @asyncSlot(QModelIndex)
     async def _handle_collapsed(self, index: QModelIndex) -> None:
@@ -182,3 +192,45 @@ class OpcTreeModel(QAbstractItemModel):
         # Clear the children for the item just collapsed
         item = index.internalPointer()
         item.clear_children()
+
+    @asyncSlot(QModelIndex)
+    async def custom_expand(self, idx):
+        if not idx.isValid():
+            return
+        item = idx.internalPointer()
+
+        text = item.data(0)
+        item.set_data(ua.AttributeIds.DisplayName, ua.DataValue("loading..."))
+        children = []
+
+        children.append(item)
+        while len(children) > 0:
+            if not self.view.isExpanded(idx):
+                break
+            child_item = children[0]
+
+            for i in range(0, child_item.child_count()):
+                
+                child = child_item.child(i)
+
+                index = QModelIndex(child.persistent_index(0))
+                if not self.view.isExpanded(idx):
+                    break
+                if len(await child.node.get_children_descriptions()) > 0:
+                    children.append(child)
+                    self.view.expand(index)
+                    if not child.is_refreshing_children:
+                        try:
+                            await child.refresh_children()
+                        except:
+                            break 
+            children.pop(0)
+        item.set_data(ua.AttributeIds.DisplayName, ua.DataValue(text))
+
+    @asyncSlot(QModelIndex)
+    async def trigger_expand(self, idx):
+        self.view.setExpanded(idx, True)
+
+    @asyncSlot(QModelIndex)
+    async def trigger_collapse(self, idx):
+        self.view.setExpanded(idx, False)
