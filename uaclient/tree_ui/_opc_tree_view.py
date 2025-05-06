@@ -14,15 +14,7 @@ class OPCTreeView(QTreeView):
         super().__init__(parent)
         self.hasShiftExpanded = False
         self.hasShiftCollapsed = False
-        # self.expanded.connect(self.expandHandler)
 
-    # def expand(self, index: QModelIndex) -> None:
-    #     self.isIndexValid(index)
-    #     # if expanded:
-    #     #     self.expand(index, False)
-    #     # else:
-    #     #     self.collapse(index)
-    #     print('expanded')
     def mousePressEvent(self, event):
         idx = self.indexAt(event.pos())
         if idx.isValid() and event.modifiers() & Qt.ShiftModifier:

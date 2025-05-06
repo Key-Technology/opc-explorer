@@ -44,7 +44,7 @@ class OpcTreeItem(QObject):
         self._value = None
         self._children_fetched = False
         self._type_definition = None
-    
+
         self._requested_columns = columns
         self._model_column_to_ua_column = dict(
             [(index, column) for index, column in enumerate(columns)]

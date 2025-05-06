@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import QTreeView
 from asyncua import Node
 from asyncua import ua
 from asyncua.ua import AttributeIds
+import asyncio
 from ._opc_tree_item import OpcTreeItem
 
 _UA_ATTRIBUTE_NAMES = {
@@ -182,7 +183,10 @@ class OpcTreeModel(QAbstractItemModel):
 
         if self.view.hasShiftExpanded:
             self.view.hasShiftExpanded = False
+            text = item.data(0)
+            item.set_data(ua.AttributeIds.DisplayName, ua.DataValue("loading..."))
             await self.custom_expand(index)
+            item.set_data(ua.AttributeIds.DisplayName, ua.DataValue(text))
 
     @asyncSlot(QModelIndex)
     async def _handle_collapsed(self, index: QModelIndex) -> None:
@@ -199,8 +203,6 @@ class OpcTreeModel(QAbstractItemModel):
             return
         item = idx.internalPointer()
 
-        text = item.data(0)
-        item.set_data(ua.AttributeIds.DisplayName, ua.DataValue("loading..."))
         children = []
 
         children.append(item)
@@ -208,9 +210,9 @@ class OpcTreeModel(QAbstractItemModel):
             if not self.view.isExpanded(idx):
                 break
             child_item = children[0]
-
+            tasks = set()
             for i in range(0, child_item.child_count()):
-                
+
                 child = child_item.child(i)
 
                 index = QModelIndex(child.persistent_index(0))
@@ -218,14 +220,15 @@ class OpcTreeModel(QAbstractItemModel):
                     break
                 if len(await child.node.get_children_descriptions()) > 0:
                     children.append(child)
+                    child.is_refreshing_children = True
                     self.view.expand(index)
-                    if not child.is_refreshing_children:
-                        try:
-                            await child.refresh_children()
-                        except:
-                            break 
+                    task = asyncio.create_task(child.refresh_children())
+                    tasks.add(task)
+            try:
+                await asyncio.gather(*tasks)
+            except ValueError:
+                pass
             children.pop(0)
-        item.set_data(ua.AttributeIds.DisplayName, ua.DataValue(text))
 
     @asyncSlot(QModelIndex)
     async def trigger_expand(self, idx):
