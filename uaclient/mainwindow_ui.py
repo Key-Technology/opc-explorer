@@ -32,7 +32,7 @@ class Ui_MainWindow(object):
         self.splitter.setSizePolicy(sizePolicy)
         self.splitter.setOrientation(QtCore.Qt.Horizontal)
         self.splitter.setObjectName("splitter")
-        self.treeView = QtWidgets.QTreeView(self.splitter)
+        self.treeView = OPCTreeView(self.splitter)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -232,3 +232,14 @@ class Ui_MainWindow(object):
         self.actionDark_Mode.setText(_translate("MainWindow", "Dark Mode"))
         self.actionDark_Mode.setStatusTip(_translate("MainWindow", "Enables Dark Mode Theme"))
         self.actionClient_Application_Certificate.setText(_translate("MainWindow", "Client Application Certificate"))
+from uaclient.tree_ui._opc_tree_view import OPCTreeView
+
+
+if __name__ == "__main__":
+    import sys
+    app = QtWidgets.QApplication(sys.argv)
+    MainWindow = QtWidgets.QMainWindow()
+    ui = Ui_MainWindow()
+    ui.setupUi(MainWindow)
+    MainWindow.show()
+    sys.exit(app.exec_())
