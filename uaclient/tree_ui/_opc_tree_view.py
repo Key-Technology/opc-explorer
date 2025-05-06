@@ -1,5 +1,5 @@
-
 from PyQt5.QtWidgets import QTreeView
+
 # from uaclient.tree.expand_collapse_manager import ExpandCollapseManager
 from PyQt5.QtCore import pyqtSignal, Qt, QModelIndex
 
