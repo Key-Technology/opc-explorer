@@ -55,12 +55,20 @@ class Ui_ConnectionDialog(object):
 
     def retranslateUi(self, ConnectionDialog):
         _translate = QtCore.QCoreApplication.translate
-        ConnectionDialog.setWindowTitle(_translate("ConnectionDialog", "ConnectionDialog"))
-        self.queryButton.setText(_translate("ConnectionDialog", "Query server capability"))
+        ConnectionDialog.setWindowTitle(
+            _translate("ConnectionDialog", "ConnectionDialog")
+        )
+        self.queryButton.setText(
+            _translate("ConnectionDialog", "Query server capability")
+        )
         self.label.setText(_translate("ConnectionDialog", "Security Policy"))
         self.label_2.setText(_translate("ConnectionDialog", "Message Security Mode"))
         self.certificateLabel.setText(_translate("ConnectionDialog", "None"))
-        self.certificateButton.setText(_translate("ConnectionDialog", "Select certificate"))
+        self.certificateButton.setText(
+            _translate("ConnectionDialog", "Select certificate")
+        )
         self.privateKeyLabel.setText(_translate("ConnectionDialog", "None"))
-        self.privateKeyButton.setText(_translate("ConnectionDialog", "Select private key"))
+        self.privateKeyButton.setText(
+            _translate("ConnectionDialog", "Select private key")
+        )
         self.closeButton.setText(_translate("ConnectionDialog", "Close"))
