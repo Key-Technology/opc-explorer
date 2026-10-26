@@ -42,6 +42,7 @@ from qasync import (
     asyncSlot,
     QApplication,
 )
+
 # must be here for resources even if not used
 from uawidgets import resources  # noqa: F401
 
@@ -238,8 +239,8 @@ class Window(QMainWindow):
     @asyncSlot(tree_ui.OpcTreeItem)
     async def _subscribe_to_node(self, item: tree_ui.OpcTreeItem):
         with contextlib.suppress(
-                asyncua.ua.uaerrors.BadAttributeIdInvalid,
-                asyncua.ua.uaerrors.BadTooManyMonitoredItems,
+            asyncua.ua.uaerrors.BadAttributeIdInvalid,
+            asyncua.ua.uaerrors.BadTooManyMonitoredItems,
         ):
             subscription_data = _SubscriptionData(
                 await self._ua_subscription.subscribe_data_change(item.node),
