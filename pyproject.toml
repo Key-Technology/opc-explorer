@@ -1,0 +1,5 @@
+[tool.black]
+# Allow lines to be as long as 180.
+line-length = 180
+# pip creates build/ during CI; don't check those copies of the sources
+extend-exclude = '^/build/'

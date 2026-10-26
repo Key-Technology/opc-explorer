@@ -93,15 +93,11 @@ class ConnectionDialog(QDialog):
         return self._ui.privateKeyLabel.text()
 
     def _get_certificate(self):
-        path, ok = QFileDialog.getOpenFileName(
-            self, "Select certificate", self.certificate_path, "Certificate (*.der)"
-        )
+        path, ok = QFileDialog.getOpenFileName(self, "Select certificate", self.certificate_path, "Certificate (*.der)")
         if ok:
             self._ui.certificateLabel.setText(path)
 
     def _get_private_key(self):
-        path, ok = QFileDialog.getOpenFileName(
-            self, "Select private key", self.private_key_path, "Private key (*.pem)"
-        )
+        path, ok = QFileDialog.getOpenFileName(self, "Select private key", self.private_key_path, "Private key (*.pem)")
         if ok:
             self._ui.privateKeyLabel.setText(path)

@@ -3218,15 +3218,11 @@ if qt_version is not None and qt_version.split(".") < ["5", "8", "0"]:
 
 
 def qInitResources():
-    QtCore.qRegisterResourceData(
-        rcc_version, qt_resource_struct, qt_resource_name, qt_resource_data
-    )
+    QtCore.qRegisterResourceData(rcc_version, qt_resource_struct, qt_resource_name, qt_resource_data)
 
 
 def qCleanupResources():
-    QtCore.qUnregisterResourceData(
-        rcc_version, qt_resource_struct, qt_resource_name, qt_resource_data
-    )
+    QtCore.qUnregisterResourceData(rcc_version, qt_resource_struct, qt_resource_name, qt_resource_data)
 
 
 qInitResources()

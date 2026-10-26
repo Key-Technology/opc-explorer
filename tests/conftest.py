@@ -71,8 +71,6 @@ def wait_for_signal():
         try:
             await asyncio.wait_for(signal_received.wait(), timeout)
         except (TimeoutError, asyncio.TimeoutError):
-            pytest.fail(
-                f"Timed out waiting to receive {signal.signal.lstrip('2')} signal"
-            )
+            pytest.fail(f"Timed out waiting to receive {signal.signal.lstrip('2')} signal")
 
     return _signal_waiter

@@ -189,9 +189,7 @@ class AttrsWidget(QObject):
     async def show_attrs(self, node):
         if self.current_node is not None and self.current_node != node:
             with contextlib.suppress(TypeError, KeyError):
-                self._subscription_data[
-                    self.current_node.nodeid
-                ].signal.signal.disconnect(self._set_value)
+                self._subscription_data[self.current_node.nodeid].signal.signal.disconnect(self._set_value)
 
         self.current_node = node
         self.clear()
@@ -200,9 +198,7 @@ class AttrsWidget(QObject):
         self.view.expandToDepth(0)
 
         with contextlib.suppress(KeyError):
-            self._subscription_data[self.current_node.nodeid].signal.signal.connect(
-                self._set_value
-            )
+            self._subscription_data[self.current_node.nodeid].signal.signal.connect(self._set_value)
 
     async def _show_attrs(self):
         attrs = await self.get_all_attrs()
@@ -244,9 +240,7 @@ class AttrsWidget(QObject):
             AttributeData(attr, dv.Value.Value, dv.Value.VariantType),
             Qt.ItemDataRole.UserRole,
         )
-        self.model.appendRow(
-            [name_item, vitem, QStandardItem(dv.Value.VariantType.name)]
-        )
+        self.model.appendRow([name_item, vitem, QStandardItem(dv.Value.VariantType.name)])
 
     def _show_value_attr(self, attr, dv):
         name_item = QStandardItem("Value")
@@ -259,9 +253,7 @@ class AttrsWidget(QObject):
     def _update_value_attr(self, item: QStandardItem, attr, dv):
         item.removeRows(0, item.rowCount())  # Remove all children before adding more
 
-        items = self._show_val(
-            item, None, "Value", dv.Value.Value, dv.Value.VariantType
-        )
+        items = self._show_val(item, None, "Value", dv.Value.Value, dv.Value.VariantType)
         items[1].setData(
             AttributeData(attr, dv.Value.Value, dv.Value.VariantType),
             Qt.ItemDataRole.UserRole,
@@ -271,9 +263,7 @@ class AttrsWidget(QObject):
     def _show_sdef_attr(self, attr, dv):
         if dv.Value.Value is None:
             return
-        items = self._show_val(
-            self.model, None, "DataTypeDefinition", dv.Value.Value, dv.Value.VariantType
-        )
+        items = self._show_val(self.model, None, "DataTypeDefinition", dv.Value.Value, dv.Value.VariantType)
         items[1].setData(
             AttributeData(attr, dv.Value.Value, dv.Value.VariantType),
             Qt.ItemDataRole.UserRole,
@@ -305,9 +295,7 @@ class AttrsWidget(QObject):
             vtypename = vtype.name if isinstance(vtype, Enum) else str(vtype)
             row = [name_item, vitem, QStandardItem(vtypename)]
             parent.appendRow(row)
-            if vtype == ua.VariantType.ExtensionObject or not isinstance(
-                vtype, ua.VariantType
-            ):
+            if vtype == ua.VariantType.ExtensionObject or not isinstance(vtype, ua.VariantType):
                 self._show_ext_obj(name_item, val)
 
     def refresh_list(self, parent, mylist, vtype):
@@ -430,11 +418,7 @@ class MyDelegate(QStyledItemDelegate):
         data = model.data(idx, Qt.ItemDataRole.UserRole)
 
         if isinstance(data, AttributeData):
-            asyncio.create_task(
-                self._write_attribute_data(
-                    self.attrs_widget.current_node, data, editor, model, idx
-                )
-            )
+            asyncio.create_task(self._write_attribute_data(self.attrs_widget.current_node, data, editor, model, idx))
         elif isinstance(data, MemberData):
             self._set_member_data(data, editor, model, idx)
         elif isinstance(data, ListData):
@@ -452,9 +436,7 @@ class MyDelegate(QStyledItemDelegate):
     def _set_member_data(self, data, editor, model, idx):
         val = string_to_val(editor.text(), data.uatype)
         data.value = val
-        model.setItemData(
-            idx, {Qt.DisplayRole: editor.text(), Qt.ItemDataRole.UserRole: data}
-        )
+        model.setItemData(idx, {Qt.DisplayRole: editor.text(), Qt.ItemDataRole.UserRole: data})
         setattr(data.obj, data.name, val)
         attr_data = self._get_attr_data(idx, model)
         asyncio.create_task(self._write_attr(self.attrs_widget.current_node, attr_data))

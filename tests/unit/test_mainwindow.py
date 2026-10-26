@@ -9,9 +9,7 @@ async def test_model_columns(mainwindow):
     assert mainwindow._model.headerData(3, Qt.Orientation.Horizontal) == "Data Type"
 
 
-async def test_model_is_updated_when_value_changes(
-    mainwindow, async_server, wait_for_signal
-):
+async def test_model_is_updated_when_value_changes(mainwindow, async_server, wait_for_signal):
     tree_model = mainwindow._model
 
     index = await async_server.register_namespace("test")

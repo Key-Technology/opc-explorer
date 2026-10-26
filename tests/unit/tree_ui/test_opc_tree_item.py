@@ -1,9 +1,8 @@
-import pytest
 from unittest.mock import ANY, create_autospec
 
+import pytest
 from PyQt5.QtCore import QAbstractItemModel, QPersistentModelIndex, QModelIndex
 from PyQt5.QtGui import QIcon
-
 from asyncua import ua
 
 from uaclient.tree_ui import OpcTreeItem
@@ -85,9 +84,7 @@ async def test_row_with_parent(mock_model, async_server):
     node = await async_server.nodes.objects.add_object(index, "TestObject")
     await node.add_variable(index, "TestVariable", 42)
 
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
     await item.refresh_children()
 
@@ -103,9 +100,7 @@ async def test_row_multiple_children(mock_model, async_server):
     await node.add_variable(index, "TestVariable1", 42)
     await node.add_variable(index, "TestVariable2", 43)
 
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
     await item.refresh_children()
 
@@ -213,18 +208,14 @@ async def test_refresh_children(mock_model, async_server, wait_for_signal):
     node = await async_server.nodes.objects.add_object(index, "TestObject")
     child = await node.add_variable(index, "TestVariable", 42)
 
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
     mock_model.index.return_value = QModelIndex()
 
     assert not item.children_fetched()
 
-    async with wait_for_signal(
-        item.item_added, check_params_callback=lambda item: item.node == child
-    ):
+    async with wait_for_signal(item.item_added, check_params_callback=lambda item: item.node == child):
         await item.refresh_children()
 
     assert item.child_count() == 1
@@ -241,16 +232,12 @@ async def test_clear_children(mock_model, async_server, wait_for_signal):
     node = await async_server.nodes.objects.add_object(index, "TestObject")
     child = await node.add_variable(index, "TestVariable", 42)
 
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
     await item.refresh_children()
     assert item.children_fetched()
 
-    async with wait_for_signal(
-        item.item_removed, check_params_callback=lambda item: item.node == child
-    ):
+    async with wait_for_signal(item.item_removed, check_params_callback=lambda item: item.node == child):
         item.clear_children()
 
     assert item.child_count() == 0
@@ -277,9 +264,7 @@ async def test_set_data(mock_model, async_server, wait_for_signal):
 async def test_icon_without_data(mock_model, async_server):
     index = await async_server.register_namespace("test")
     node = await async_server.nodes.objects.add_variable(index, "TestVariable", 42)
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
 
     assert item.icon() is None
 
@@ -287,87 +272,55 @@ async def test_icon_without_data(mock_model, async_server):
 async def test_icon_folder(mock_model, async_server):
     index = await async_server.register_namespace("test")
     node = await async_server.nodes.objects.add_folder(index, "TestFolder")
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
-    assert (
-        item.icon().pixmap(20, 20).toImage()
-        == QIcon(":/folder.svg").pixmap(20, 20).toImage()
-    )
+    assert item.icon().pixmap(20, 20).toImage() == QIcon(":/folder.svg").pixmap(20, 20).toImage()
 
 
 async def test_icon_object(mock_model, async_server):
     index = await async_server.register_namespace("test")
     node = await async_server.nodes.objects.add_object(index, "TestObject")
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
-    assert (
-        item.icon().pixmap(20, 20).toImage()
-        == QIcon(":/object.svg").pixmap(20, 20).toImage()
-    )
+    assert item.icon().pixmap(20, 20).toImage() == QIcon(":/object.svg").pixmap(20, 20).toImage()
 
 
 async def test_icon_object_type(mock_model, async_server):
     index = await async_server.register_namespace("test")
     node = await async_server.nodes.objects.add_object_type(index, "TestObjectType")
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
-    assert (
-        item.icon().pixmap(20, 20).toImage()
-        == QIcon(":/object_type.svg").pixmap(20, 20).toImage()
-    )
+    assert item.icon().pixmap(20, 20).toImage() == QIcon(":/object_type.svg").pixmap(20, 20).toImage()
 
 
 async def test_icon_property(mock_model, async_server):
     index = await async_server.register_namespace("test")
     node = await async_server.nodes.objects.add_property(index, "TestProperty", 42)
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
-    assert (
-        item.icon().pixmap(20, 20).toImage()
-        == QIcon(":/property.svg").pixmap(20, 20).toImage()
-    )
+    assert item.icon().pixmap(20, 20).toImage() == QIcon(":/property.svg").pixmap(20, 20).toImage()
 
 
 async def test_icon_variable(mock_model, async_server):
     index = await async_server.register_namespace("test")
     node = await async_server.nodes.objects.add_variable(index, "TestVariable", 42)
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
-    assert (
-        item.icon().pixmap(20, 20).toImage()
-        == QIcon(":/variable.svg").pixmap(20, 20).toImage()
-    )
+    assert item.icon().pixmap(20, 20).toImage() == QIcon(":/variable.svg").pixmap(20, 20).toImage()
 
 
 async def test_icon_variable_type(mock_model, async_server):
     index = await async_server.register_namespace("test")
-    node = await async_server.nodes.objects.add_variable_type(
-        index, "TestVariableType", 1
-    )
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    node = await async_server.nodes.objects.add_variable_type(index, "TestVariableType", 1)
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
-    assert (
-        item.icon().pixmap(20, 20).toImage()
-        == QIcon(":/variable_type.svg").pixmap(20, 20).toImage()
-    )
+    assert item.icon().pixmap(20, 20).toImage() == QIcon(":/variable_type.svg").pixmap(20, 20).toImage()
 
 
 async def test_icon_method(mock_model, async_server):
@@ -379,42 +332,25 @@ async def test_icon_method(mock_model, async_server):
         [ua.VariantType.Int64],
         [ua.VariantType.Int64],
     )
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
-    assert (
-        item.icon().pixmap(20, 20).toImage()
-        == QIcon(":/method.svg").pixmap(20, 20).toImage()
-    )
+    assert item.icon().pixmap(20, 20).toImage() == QIcon(":/method.svg").pixmap(20, 20).toImage()
 
 
 async def test_icon_data_type(mock_model, async_server):
     index = await async_server.register_namespace("test")
     node = await async_server.nodes.objects.add_data_type(index, "TestDataType")
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
-    assert (
-        item.icon().pixmap(20, 20).toImage()
-        == QIcon(":/data_type.svg").pixmap(20, 20).toImage()
-    )
+    assert item.icon().pixmap(20, 20).toImage() == QIcon(":/data_type.svg").pixmap(20, 20).toImage()
 
 
 async def test_icon_reference_type(mock_model, async_server):
     index = await async_server.register_namespace("test")
-    node = await async_server.nodes.objects.add_reference_type(
-        index, "TestReferenceType"
-    )
-    item = OpcTreeItem(
-        mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName]
-    )
+    node = await async_server.nodes.objects.add_reference_type(index, "TestReferenceType")
+    item = OpcTreeItem(mock_model, node, QPersistentModelIndex(), [ua.AttributeIds.DisplayName])
     await item._refresh_data()
 
-    assert (
-        item.icon().pixmap(20, 20).toImage()
-        == QIcon(":/reference_type.svg").pixmap(20, 20).toImage()
-    )
+    assert item.icon().pixmap(20, 20).toImage() == QIcon(":/reference_type.svg").pixmap(20, 20).toImage()

@@ -4,9 +4,7 @@ from uaclient.applicationcertificate_ui import Ui_ApplicationCertificateDialog
 
 
 class ApplicationCertificateDialog(QDialog):
-    def __init__(
-        self, parent, application_certificate_path, application_private_key_path
-    ):
+    def __init__(self, parent, application_certificate_path, application_private_key_path):
         super().__init__(parent)
 
         self._initial_application_certificate_path = application_certificate_path

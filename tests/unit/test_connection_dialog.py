@@ -19,22 +19,14 @@ def dialog(application):
 
 
 def test_get_certificate(dialog):
-    with patch.object(
-        QFileDialog, "getOpenFileName", return_value=("/test/path", True)
-    ) as mock:
+    with patch.object(QFileDialog, "getOpenFileName", return_value=("/test/path", True)) as mock:
         dialog._get_certificate()
-        mock.assert_called_once_with(
-            dialog, "Select certificate", "test user cert", "Certificate (*.der)"
-        )
+        mock.assert_called_once_with(dialog, "Select certificate", "test user cert", "Certificate (*.der)")
         assert dialog.certificate_path == "/test/path"
 
 
 def test_get_private_key(dialog):
-    with patch.object(
-        QFileDialog, "getOpenFileName", return_value=("/test/path", True)
-    ) as mock:
+    with patch.object(QFileDialog, "getOpenFileName", return_value=("/test/path", True)) as mock:
         dialog._get_private_key()
-        mock.assert_called_once_with(
-            dialog, "Select private key", "test user key", "Private key (*.pem)"
-        )
+        mock.assert_called_once_with(dialog, "Select private key", "test user key", "Private key (*.pem)")
         assert dialog.private_key_path == "/test/path"
