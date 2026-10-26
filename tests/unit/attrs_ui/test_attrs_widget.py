@@ -1,11 +1,11 @@
 # Copied from uawidgets on 03/27/25 and made async
 
-import pytest
 import functools
 
-from asyncua import ua
+import pytest
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QTreeView, QAbstractItemDelegate
+from asyncua import ua
 
 from uaclient.attrs_ui import AttrsWidget
 
@@ -27,10 +27,10 @@ def modify_item(widget, wait_for_signal):
         """
         idxlist = widget.model.match(
             widget.model.index(0, 0),
-            Qt.DisplayRole,
+            Qt.ItemDataRole.DisplayRole,
             text,
             match_to_use + 1,
-            Qt.MatchExactly | Qt.MatchRecursive,
+            Qt.MatchFlag.MatchExactly | Qt.MatchFlag.MatchRecursive,
         )
         if not idxlist:
             raise RuntimeError("Item with text '{}' not found".format(text))
@@ -40,9 +40,7 @@ def modify_item(widget, wait_for_signal):
         widget.view.edit(idx)
         editor = widget.view.focusWidget()
         if not editor:
-            raise RuntimeError(
-                "Could not get editor widget!, it does not have the focus"
-            )
+            raise RuntimeError("Could not get editor widget!, it does not have the focus")
 
         if hasattr(editor, "_current_node"):
             editor._current_node = val
@@ -53,7 +51,7 @@ def modify_item(widget, wait_for_signal):
 
         async with wait_for_signal(widget.attr_written):
             widget.view.commitData(editor)
-            widget.view.closeEditor(editor, QAbstractItemDelegate.NoHint)
+            widget.view.closeEditor(editor, QAbstractItemDelegate.EndEditHint.NoHint)
             widget.view.reset()
 
     return _modify
@@ -83,9 +81,7 @@ async def test_display_var_double(widget, async_server, modify_value):
 
 async def test_display_var_bytes(widget, async_server, modify_value):
     objects = async_server.nodes.objects
-    myvar = await objects.add_variable(
-        1, "myvar_bytes", b"jkl", ua.VariantType.ByteString
-    )
+    myvar = await objects.add_variable(1, "myvar_bytes", b"jkl", ua.VariantType.ByteString)
     await widget.show_attrs(myvar)
     await modify_value("titi")
     value = await myvar.read_value()
@@ -110,9 +106,7 @@ async def test_display_var_bytes(widget, async_server, modify_value):
 #     assert value == "mystring"
 
 
-async def test_change_value_rank(
-    widget, async_server, modify_item
-):  # need to find a way to modify combo box with QTest
+async def test_change_value_rank(widget, async_server, modify_item):  # need to find a way to modify combo box with QTest
     objects = async_server.nodes.objects
     myvar = await objects.add_variable(1, "myvar1", 9.99, ua.VariantType.Double)
     await widget.show_attrs(myvar)

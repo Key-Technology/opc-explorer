@@ -1,7 +1,6 @@
 import asyncio
 import copy
 from typing import Optional, Any, List, Dict, cast
-from asyncua.common.ua_utils import val_to_string, data_type_to_string
 
 from PyQt5.QtCore import (
     QObject,
@@ -11,8 +10,11 @@ from PyQt5.QtCore import (
     QAbstractItemModel,
 )
 from PyQt5.QtGui import QIcon
-
 from asyncua import ua, Node
+from asyncua.common.ua_utils import (
+    val_to_string,
+    data_type_to_string,
+)
 
 
 async def _refresh_item(item):
@@ -46,12 +48,8 @@ class OpcTreeItem(QObject):
         self._type_definition = None
 
         self._requested_columns = columns
-        self._model_column_to_ua_column = dict(
-            [(index, column) for index, column in enumerate(columns)]
-        )
-        self._ua_column_to_model_column = dict(
-            [(column, index) for index, column in enumerate(columns)]
-        )
+        self._model_column_to_ua_column = dict([(index, column) for index, column in enumerate(columns)])
+        self._ua_column_to_model_column = dict([(column, index) for index, column in enumerate(columns)])
 
         self._columns = copy.deepcopy(columns)
 
@@ -77,10 +75,7 @@ class OpcTreeItem(QObject):
 
         children = await self.node.get_children()
         index = self.persistent_index(0)
-        items = [
-            OpcTreeItem(self._model, child, index, self._requested_columns)
-            for child in children
-        ]
+        items = [OpcTreeItem(self._model, child, index, self._requested_columns) for child in children]
 
         self._model.beginInsertRows(QModelIndex(index), 0, len(children) - 1)
 
@@ -113,7 +108,7 @@ class OpcTreeItem(QObject):
 
         # Maintain a sorted list here as we insert, so we don't have
         # to sort after the fact. Using a sorted container would be
-        # more efficient, but it would be less clear and we really
+        # more efficient, but it would be less clear, and we really
         # aren't dealing with that many nodes here.
         destination_index = 0
         for index, sibling in enumerate(self._children):
@@ -132,9 +127,7 @@ class OpcTreeItem(QObject):
             # This must be the root item
             return QPersistentModelIndex(self._model.index(0, 0))
 
-        return QPersistentModelIndex(
-            self._model.index(self.row(), column, QModelIndex(self._parent_index))
-        )
+        return QPersistentModelIndex(self._model.index(self.row(), column, QModelIndex(self._parent_index)))
 
     def clear_children(self, *, recursive=False) -> None:
         self._children_fetched = False
@@ -208,9 +201,7 @@ class OpcTreeItem(QObject):
 
         return None
 
-    def set_data(
-        self, attribute: ua.AttributeIds, value: ua.DataValue, *, emit: bool = True
-    ) -> None:
+    def set_data(self, attribute: ua.AttributeIds, value: ua.DataValue, *, emit: bool = True) -> None:
         real_value = value.Value
         if isinstance(real_value, ua.LocalizedText):
             real_value = real_value.Text

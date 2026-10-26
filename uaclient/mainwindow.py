@@ -1,14 +1,14 @@
 #! /usr/bin/env python3
 
-import sys
 import asyncio
-import contextlib
 import collections
+import contextlib
 import functools
 import logging
+import sys
 from typing import Any, Dict, List
 
-from qasync import QEventLoop, QApplication, asyncClose, asyncSlot
+import asyncua.ua.uaerrors
 from PyQt5.QtCore import (
     QCoreApplication,
     QSettings,
@@ -17,24 +17,39 @@ from PyQt5.QtCore import (
     QTimer,
     QItemSelection,
     QSignalBlocker,
+    QModelIndex,
 )
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QMainWindow, QWidget, QAbstractItemView, QDialog
-
-from asyncua import Client, Node
-from asyncua import crypto
-from asyncua.common.subscription import Subscription, DataChangeNotif
-from asyncua.ua import NodeId, AttributeIds, DataValue, MessageSecurityMode
-import asyncua.ua.uaerrors
-
+from asyncua import (
+    Client,
+    Node,
+)
+from asyncua.common.subscription import (
+    Subscription,
+    DataChangeNotif,
+)
+from asyncua.crypto import security_policies
+from asyncua.ua import (
+    NodeId,
+    AttributeIds,
+    DataValue,
+    MessageSecurityMode,
+)
+from qasync import (
+    QEventLoop,
+    asyncClose,
+    asyncSlot,
+    QApplication,
+)
 # must be here for resources even if not used
 from uawidgets import resources  # noqa: F401
 
-from uaclient.mainwindow_ui import Ui_MainWindow
-from uaclient import tree_ui
 from uaclient import attrs_ui
-from uaclient.connection_dialog import ConnectionDialog
+from uaclient import tree_ui
 from uaclient.application_certificate_dialog import ApplicationCertificateDialog
+from uaclient.connection_dialog import ConnectionDialog
+from uaclient.mainwindow_ui import Ui_MainWindow
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +64,7 @@ class _DataChangeHandler:
     def __init__(self, _callback) -> None:
         self._callback = _callback
 
-    async def datachange_notification(
-        self, node: Node, _value: Any, data: DataChangeNotif
-    ):
+    async def datachange_notification(self, node: Node, _value: Any, data: DataChangeNotif):
         await self._callback(node, data.monitored_item.Value)
 
 
@@ -59,9 +72,7 @@ class Window(QMainWindow):
     def __init__(self, *, use_settings=True) -> None:
         super().__init__()
 
-        self._use_settings = (
-            use_settings  # Support not using settings files (for tests)
-        )
+        self._use_settings = use_settings  # Support not using settings files (for tests)
 
         self._uaclient: Client = None
         self._ua_subscription: Subscription = None
@@ -122,19 +133,22 @@ class Window(QMainWindow):
         self._ui.treeView.header().setStretchLastSection(True)
         self._ui.treeView.setSelectionBehavior(QAbstractItemView.SelectRows)
 
+        self._ui.actionExpandAll.setEnabled(False)
+        self._ui.actionCollapseAll.setEnabled(False)
+        self._ui.treeView.addAction(self._ui.actionExpandAll)
+        self._ui.treeView.addAction(self._ui.actionCollapseAll)
+        self._ui.actionExpandAll.triggered.connect(self._expand_all)
+        self._ui.actionCollapseAll.triggered.connect(self._collapse_all)
+
     def _setup_ui_attrs(self):
-        self._attrs_ui = attrs_ui.AttrsWidget(
-            self._ui.attrView, self._ua_subscription_data
-        )
+        self._attrs_ui = attrs_ui.AttrsWidget(self._ui.attrView, self._ua_subscription_data)
         self._attrs_ui.error.connect(self._show_error)
 
-        self._ui.treeView.selectionModel().selectionChanged.connect(
-            self._handle_selection
-        )
+        self._ui.treeView.selectionModel().selectionChanged.connect(self._handle_selection)
         self._ui.attrRefreshButton.clicked.connect(self._attrs_ui.reload)
 
     def _setup_ui_dock(self):
-        # fix stuff imposible to do in qtdesigner
+        # fix stuff impossible to do in qtdesigner
         # remove dock titlebar for addressbar
         w = QWidget()
         self._ui.addrDockWidget.setTitleBarWidget(w)
@@ -150,9 +164,7 @@ class Window(QMainWindow):
         self._ui.connectOptionButton.clicked.connect(self._show_connection_dialog)
 
     def _setup_ui_application_certificate_dialog(self):
-        self._ui.actionClient_Application_Certificate.triggered.connect(
-            self._show_application_certificate_dialog
-        )
+        self._ui.actionClient_Application_Certificate.triggered.connect(self._show_application_certificate_dialog)
 
     def _save_state(self):
         if not self._use_settings:
@@ -167,17 +179,11 @@ class Window(QMainWindow):
             self._settings.setValue("address", value)
         self._settings.endArray()
 
-        self._settings.setValue(
-            "tree_view/header/state", self._ui.treeView.header().saveState()
-        )
+        self._settings.setValue("tree_view/header/state", self._ui.treeView.header().saveState())
 
-        self._settings.setValue(
-            "opc_client/certificate", self._application_certificate_path
-        )
+        self._settings.setValue("opc_client/certificate", self._application_certificate_path)
         self._settings.setValue("opc_client/key", self._application_private_key_path)
-        self._settings.setValue(
-            "opc_client/user_certificate", self._user_certificate_path
-        )
+        self._settings.setValue("opc_client/user_certificate", self._user_certificate_path)
         self._settings.setValue("opc_client/user_key", self._user_private_key_path)
         self._settings.setValue("opc_client/security_mode", self._security_mode)
         self._settings.setValue("opc_client/security_policy", self._security_policy)
@@ -211,15 +217,9 @@ class Window(QMainWindow):
         if data is not None:
             self._ui.treeView.header().restoreState(data)
 
-        self._application_certificate_path = self._settings.value(
-            "opc_client/certificate", None
-        )
-        self._application_private_key_path = self._settings.value(
-            "opc_client/key", None
-        )
-        self._user_certificate_path = self._settings.value(
-            "opc_client/user_certificate", None
-        )
+        self._application_certificate_path = self._settings.value("opc_client/certificate", None)
+        self._application_private_key_path = self._settings.value("opc_client/key", None)
+        self._user_certificate_path = self._settings.value("opc_client/user_certificate", None)
         self._user_private_key_path = self._settings.value("opc_client/user_key", None)
         self._security_mode = self._settings.value("opc_client/security_mode", None)
         self._security_policy = self._settings.value("opc_client/security_policy", None)
@@ -230,7 +230,7 @@ class Window(QMainWindow):
 
     async def _handle_subscription_data(self, node: Node, value: DataValue) -> None:
         # Suppress KeyError because there might be a race condition
-        # between unsubscribing and receiving data, i.e. we might
+        # between unsubscribing and receiving data, i.e., we might
         # receive data for a subscription we just removed.
         with contextlib.suppress(KeyError):
             self._ua_subscription_data[node.nodeid].signal.signal.emit(value)
@@ -238,17 +238,15 @@ class Window(QMainWindow):
     @asyncSlot(tree_ui.OpcTreeItem)
     async def _subscribe_to_node(self, item: tree_ui.OpcTreeItem):
         with contextlib.suppress(
-            asyncua.ua.uaerrors.BadAttributeIdInvalid,
-            asyncua.ua.uaerrors.BadTooManyMonitoredItems,
+                asyncua.ua.uaerrors.BadAttributeIdInvalid,
+                asyncua.ua.uaerrors.BadTooManyMonitoredItems,
         ):
             subscription_data = _SubscriptionData(
                 await self._ua_subscription.subscribe_data_change(item.node),
                 _SubscriptionSignal(self),
             )
             self._ua_subscription_data[item.node.nodeid] = subscription_data
-            subscription_data.signal.signal.connect(
-                functools.partial(item.set_data, AttributeIds.Value)
-            )
+            subscription_data.signal.signal.connect(functools.partial(item.set_data, AttributeIds.Value))
 
     @asyncSlot(tree_ui.OpcTreeItem)
     async def _unsubscribe_from_node(self, item: tree_ui.OpcTreeItem):
@@ -262,16 +260,48 @@ class Window(QMainWindow):
         await self._ua_subscription.unsubscribe(subscription_data.handle)
 
     @asyncSlot(QItemSelection, QItemSelection)
-    async def _handle_selection(
-        self, _selected: QItemSelection, _deselected: QItemSelection
-    ):
+    async def _handle_selection(self, _selected: QItemSelection, _deselected: QItemSelection):
         current_index = self._ui.treeView.currentIndex()
+
+        is_group_node = current_index.isValid() and self._model.hasChildren(current_index)
+        self._ui.actionExpandAll.setEnabled(is_group_node)
+        self._ui.actionCollapseAll.setEnabled(is_group_node)
+
         if not current_index.isValid():
             return
 
         item = current_index.internalPointer()
         if item:
             await self._attrs_ui.show_attrs(item.node)
+
+    async def _expand_recursively(self, index: QModelIndex) -> None:
+        item = index.internalPointer()
+        if item is None:
+            return
+
+        if not item.children_fetched():
+            await item.refresh_children()
+
+        with QSignalBlocker(self._ui.treeView):
+            self._ui.treeView.expand(index)
+
+        for row in range(self._model.rowCount(index)):
+            await self._expand_recursively(self._model.index(row, 0, index))
+
+    @asyncSlot()
+    async def _expand_all(self) -> None:
+        index = self._ui.treeView.currentIndex()
+        if index.isValid():
+            await self._expand_recursively(index)
+
+    def _collapse_all(self) -> None:
+        index = self._ui.treeView.currentIndex()
+        if not index.isValid():
+            return
+
+        item = index.internalPointer()
+        item.clear_children(recursive=True)
+        self._ui.treeView.collapse(index)
 
     def _show_connection_dialog(self):
         dia = ConnectionDialog(
@@ -290,9 +320,7 @@ class Window(QMainWindow):
             self._user_private_key_path = dia.private_key_path
 
     def _show_application_certificate_dialog(self):
-        dia = ApplicationCertificateDialog(
-            self, self._application_certificate_path, self._application_private_key_path
-        )
+        dia = ApplicationCertificateDialog(self, self._application_certificate_path, self._application_private_key_path)
         ret = dia.exec_()
         if ret == QDialog.Accepted:
             self._application_certificate_path = dia.certificate_path
@@ -311,9 +339,7 @@ class Window(QMainWindow):
 
         if self._security_mode is not None and self._security_policy is not None:
             await self._uaclient.set_security(
-                getattr(
-                    crypto.security_policies, "SecurityPolicy" + self._security_policy
-                ),
+                getattr(security_policies, "SecurityPolicy" + self._security_policy),
                 self._application_certificate_path,
                 self._application_private_key_path,
                 mode=getattr(MessageSecurityMode, self._security_mode),
@@ -327,9 +353,7 @@ class Window(QMainWindow):
 
         self._save_new_uri(uri)
 
-        self._ua_subscription = await self._uaclient.create_subscription(
-            500, _DataChangeHandler(self._handle_subscription_data)
-        )
+        self._ua_subscription = await self._uaclient.create_subscription(500, _DataChangeHandler(self._handle_subscription_data))
 
         await self._model.set_root_node(self._uaclient.nodes.root)
         self._ui.treeView.setFocus()
@@ -354,9 +378,7 @@ class Window(QMainWindow):
     def _show_error(self, msg):
         logger.warning("showing error: %s")
         self._ui.statusBar.show()
-        self._ui.statusBar.setStyleSheet(
-            "QStatusBar { background-color : red; color : black; }"
-        )
+        self._ui.statusBar.setStyleSheet("QStatusBar { background-color : red; color : black; }")
         self._ui.statusBar.showMessage(str(msg))
         QTimer.singleShot(1500, self._ui.statusBar.hide)
 

@@ -1,6 +1,5 @@
 from typing import Any, List, Union, Optional, overload
 
-from qasync import asyncSlot
 from PyQt5.QtCore import (
     Qt,
     QModelIndex,
@@ -11,10 +10,11 @@ from PyQt5.QtCore import (
     QObject,
 )
 from PyQt5.QtWidgets import QTreeView
-
 from asyncua import Node
 from asyncua.ua import AttributeIds
-from ._opc_tree_item import OpcTreeItem
+from qasync import asyncSlot
+
+from uaclient.tree_ui import OpcTreeItem
 
 _UA_ATTRIBUTE_NAMES = {
     AttributeIds.NodeId: "Node ID",
@@ -63,9 +63,7 @@ class OpcTreeModel(QAbstractItemModel):
         view.expanded.connect(self._handle_expanded)
         view.collapsed.connect(self._handle_collapsed)
 
-    def index(
-        self, row: int, column: int, parent: QModelIndex = QModelIndex()
-    ) -> QModelIndex:
+    def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
 
@@ -82,9 +80,7 @@ class OpcTreeModel(QAbstractItemModel):
     @overload
     def parent(self) -> Optional[QObject]: ...
 
-    def parent(
-        self, child: Optional[QModelIndex] = None
-    ) -> Union[Optional[QObject], QModelIndex]:
+    def parent(self, child: Optional[QModelIndex] = None) -> Union[Optional[QObject], QModelIndex]:
         if child is None:
             return super().parent()
 
@@ -149,10 +145,7 @@ class OpcTreeModel(QAbstractItemModel):
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> QVariant:
-        if (
-            role == Qt.ItemDataRole.DisplayRole
-            and orientation == Qt.Orientation.Horizontal
-        ):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             return QVariant(_UA_ATTRIBUTE_NAMES[self._columns[section]])
         return QVariant()
 
@@ -160,9 +153,7 @@ class OpcTreeModel(QAbstractItemModel):
         self._root_item.clear_children(recursive=True)
 
     @asyncSlot(QModelIndex, QModelIndex)
-    async def _handle_data_changed(
-        self, start_index: QModelIndex, end_index: QModelIndex
-    ) -> None:
+    async def _handle_data_changed(self, start_index: QModelIndex, end_index: QModelIndex) -> None:
         self.dataChanged.emit(start_index, end_index)
 
     @asyncSlot(QModelIndex)

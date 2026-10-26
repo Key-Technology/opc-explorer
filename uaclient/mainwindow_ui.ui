@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>922</width>
-    <height>879</height>
+    <width>950</width>
+    <height>900</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -62,7 +62,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>922</width>
+     <width>950</width>
      <height>20</height>
     </rect>
    </property>
@@ -97,8 +97,8 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>400</width>
-     <height>170</height>
+     <width>100</width>
+     <height>50</height>
     </size>
    </property>
    <property name="windowTitle">
@@ -359,6 +359,22 @@
   <action name="actionClient_Application_Certificate">
    <property name="text">
     <string>Client Application Certificate</string>
+   </property>
+  </action>
+  <action name="actionExpandAll">
+   <property name="text">
+    <string>Expand All</string>
+   </property>
+   <property name="toolTip">
+    <string>Expand all children of the selected node</string>
+   </property>
+  </action>
+  <action name="actionCollapseAll">
+   <property name="text">
+    <string>Collapse All</string>
+   </property>
+   <property name="toolTip">
+    <string>Collapse all children of the selected node</string>
    </property>
   </action>
  </widget>
